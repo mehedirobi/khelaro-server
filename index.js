@@ -155,6 +155,46 @@ async function run() {
       }
     });
 
+    // Get turfs by owner email
+app.get("/owner/turfs/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+
+    const result = await turfsCollection
+      .find({ ownerEmail: email })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to get owner turfs",
+    });
+  }
+});
+
+    // Get bookings by turf ID
+app.get("/bookings/turf/:turfId", async (req, res) => {
+  try {
+    const turfId = req.params.turfId;
+
+    const result = await bookingsCollection
+      .find({ turfId })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to get turf bookings",
+    });
+  }
+});
+
     // Create turf
     app.post("/turfs", async (req, res) => {
       try {
@@ -174,6 +214,69 @@ async function run() {
       }
     });
 
+    // Update turf
+app.patch("/turfs/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedData = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid turf ID",
+      });
+    }
+
+    const result = await turfsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: updatedData,
+      }
+    );
+
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to update turf",
+    });
+  }
+});
+
+// Delete turf
+app.delete("/turfs/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid turf ID",
+      });
+    }
+
+    const result = await turfsCollection.deleteOne({
+      _id: new ObjectId(id),
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).send({
+        message: "Turf not found",
+      });
+    }
+
+    res.send({
+      message: "Turf deleted successfully",
+      result,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to delete turf",
+    });
+  }
+});
+
     // =========================
     // BOOKINGS API
     // =========================
@@ -190,6 +293,38 @@ async function run() {
             message: "Turf ID, date, start time and end time are required",
           });
         }
+
+
+        // Get booked slots for a specific turf and date
+app.get("/bookings/availability", async (req, res) => {
+  try {
+    const { turfId, date } = req.query;
+
+    if (!turfId || !date) {
+      return res.status(400).send({
+        message: "Turf ID and date are required",
+      });
+    }
+
+    const bookings = await bookingsCollection
+      .find({
+        turfId,
+        date,
+        status: {
+          $in: ["pending", "confirmed"],
+        },
+      })
+      .toArray();
+
+    res.send(bookings);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to get availability",
+    });
+  }
+});
 
         // Check existing booking
         const existingBooking = await bookingsCollection.findOne({
@@ -247,6 +382,99 @@ async function run() {
         });
       }
     });
+
+    // Cancel booking
+app.patch("/bookings/:id/cancel", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid booking ID",
+      });
+    }
+
+    const result = await bookingsCollection.updateOne(
+      {
+        _id: new ObjectId(id),
+      },
+      {
+        $set: {
+          status: "cancelled",
+          cancelledAt: new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        message: "Booking not found",
+      });
+    }
+
+    res.send({
+      message: "Booking cancelled successfully",
+      result,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to cancel booking",
+    });
+  }
+});
+
+// Update booking status
+app.patch("/bookings/:id/status", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid booking ID",
+      });
+    }
+
+    const allowedStatuses = ["pending", "confirmed", "cancelled"];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).send({
+        message: "Invalid booking status",
+      });
+    }
+
+    const result = await bookingsCollection.updateOne(
+      {
+        _id: new ObjectId(id),
+      },
+      {
+        $set: {
+          status,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        message: "Booking not found",
+      });
+    }
+
+    res.send({
+      message: `Booking ${status} successfully`,
+      result,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to update booking status",
+    });
+  }
+});
 
     // MongoDB connection test
     await client.db("admin").command({ ping: 1 });
