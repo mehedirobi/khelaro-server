@@ -155,6 +155,66 @@ async function run() {
       }
     });
 
+    // Get all pending turfs
+app.get("/admin/turfs/pending", async (req, res) => {
+  try {
+    const result = await turfsCollection
+      .find({ status: "pending" })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to get pending turfs",
+    });
+  }
+});
+
+// Approve turf
+app.patch("/admin/turfs/:id/approve", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid turf ID",
+      });
+    }
+
+    const result = await turfsCollection.updateOne(
+      {
+        _id: new ObjectId(id),
+      },
+      {
+        $set: {
+          status: "approved",
+          approvedAt: new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        message: "Turf not found",
+      });
+    }
+
+    res.send({
+      message: "Turf approved successfully",
+      result,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send({
+      message: "Failed to approve turf",
+    });
+  }
+});
+
     // Get turfs by owner email
 app.get("/owner/turfs/:email", async (req, res) => {
   try {
