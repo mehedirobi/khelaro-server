@@ -170,6 +170,53 @@ async function run() {
       }
     });
 
+    // update owner profile
+
+    app.patch("/users/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { name, phone } = req.body;
+
+    if (!name) {
+      return res.status(400).send({
+        message: "Name is required",
+      });
+    }
+
+    const result = await usersCollection.updateOne(
+      { email },
+      {
+        $set: {
+          name,
+          phone: phone || "",
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        message: "User not found",
+      });
+    }
+
+    const updatedUser = await usersCollection.findOne({
+      email,
+    });
+
+    res.send({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+
+    res.status(500).send({
+      message: "Failed to update profile",
+    });
+  }
+});
+
     // =====================================================
     // TURF API
     // =====================================================
