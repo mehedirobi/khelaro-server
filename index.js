@@ -2,66 +2,33 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const dns = require("node:dns");
-const {
-  MongoClient,
-  ServerApiVersion,
-  ObjectId,
-} = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 dotenv.config();
 
-// =====================================================
-// DNS
-// =====================================================
-
+// DNS fix for Windows SRV issues
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
-
-// =====================================================
-// APP CONFIG
-// =====================================================
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// =====================================================
-// MIDDLEWARE
-// =====================================================
-
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
-
+// Middleware
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
-
+// Helpers
 const normalizeEmail = (email = "") => {
   try {
-    return decodeURIComponent(email)
-      .trim()
-      .toLowerCase();
+    return decodeURIComponent(String(email)).trim().toLowerCase();
   } catch {
-    return String(email)
-      .trim()
-      .toLowerCase();
+    return String(email).trim().toLowerCase();
   }
 };
 
-const isValidObjectId = (id) => {
-  return ObjectId.isValid(id);
-};
+const isValidObjectId = (id) => ObjectId.isValid(id);
 
-// =====================================================
-// MONGODB
-// =====================================================
-
-const uri = `mongodb+srv://${encodeURIComponent(
-  process.env.DB_USER
-)}:${encodeURIComponent(
-  process.env.DB_PASS
-)}@cluster0.yvhjyyn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+// MongoDB Setup
+const uri = `mongodb+srv://${encodeURIComponent(process.env.DB_USER)}:${encodeURIComponent(process.env.DB_PASS)}@cluster0.yvhjyyn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -71,39 +38,21 @@ const client = new MongoClient(uri, {
   },
 });
 
-// =====================================================
-// HOME
-// =====================================================
-
+// Basic Routes
 app.get("/", (req, res) => {
   res.send("Khelaro Server is Running");
 });
 
-// =====================================================
-// HEALTH
-// =====================================================
-
 app.get("/health", (req, res) => {
-  res.send({
-    success: true,
-    message: "Khelaro API is healthy",
-  });
+  res.send({ success: true, message: "Khelaro API is healthy" });
 });
 
-// =====================================================
-// DATABASE + ROUTES
-// =====================================================
-
+// Server Logic
 async function run() {
   try {
-    // =================================================
-    // CONNECT MONGODB
-    // =================================================
-
     await client.connect();
 
     const db = client.db("khelaro");
-
     const usersCollection = db.collection("users");
     const turfsCollection = db.collection("turfs");
     const bookingsCollection = db.collection("bookings");
@@ -111,31 +60,18 @@ async function run() {
 
     console.log("MongoDB Connected Successfully");
 
-    // =================================================
-    // USERS API
-    // =================================================
-
-    // -------------------------------------------------
-    // Create User
-    // -------------------------------------------------
-
+    // --- USERS API ---
     app.post("/users", async (req, res) => {
       try {
         const user = req.body;
-
         if (!user.email) {
-          return res.status(400).send({
-            success: false,
-            message: "Email is required",
-          });
+          return res
+            .status(400)
+            .send({ success: false, message: "Email is required" });
         }
 
         const email = normalizeEmail(user.email);
-
-        const existingUser =
-          await usersCollection.findOne({
-            email,
-          });
+        const existingUser = await usersCollection.findOne({ email });
 
         if (existingUser) {
           return res.status(200).send({
@@ -156,13 +92,10 @@ async function run() {
           updatedAt: new Date(),
         };
 
-        const result =
-          await usersCollection.insertOne(newUser);
-
-        const createdUser =
-          await usersCollection.findOne({
-            _id: result.insertedId,
-          });
+        const result = await usersCollection.insertOne(newUser);
+        const createdUser = await usersCollection.findOne({
+          _id: result.insertedId,
+        });
 
         res.status(201).send({
           success: true,
@@ -171,17 +104,11 @@ async function run() {
         });
       } catch (error) {
         console.error("Create user error:", error);
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to create user",
-        });
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to create user" });
       }
     });
-
-    // -------------------------------------------------
-    // Get All Users
-    // -------------------------------------------------
 
     app.get("/users", async (req, res) => {
       try {
@@ -189,78 +116,47 @@ async function run() {
           .find({})
           .sort({ createdAt: -1 })
           .toArray();
-
         res.send(users);
       } catch (error) {
         console.error("Get users error:", error);
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to get users",
-        });
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get users" });
       }
     });
 
-    // -------------------------------------------------
-// Get User By Email
-// -------------------------------------------------
+    app.get("/users/:email", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+        console.log("Looking for user:", email);
 
-app.get("/users/:email", async (req, res) => {
-  try {
-    // URL encoded email automatically decode করা
-    const email = decodeURIComponent(req.params.email)
-      .trim()
-      .toLowerCase();
+        const user = await usersCollection.findOne({ email });
+        console.log("Found user:", user);
 
-    console.log("Looking for user:", email);
+        if (!user) {
+          return res.status(404).send({
+            success: false,
+            message: "User not found",
+            searchedEmail: email,
+          });
+        }
 
-    const user = await usersCollection.findOne({
-      email: email,
+        res.status(200).send({ success: true, user });
+      } catch (error) {
+        console.error("Get user by email error:", error);
+        res.status(500).send({ success: false, message: "Failed to get user" });
+      }
     });
-
-    console.log("Found user:", user);
-
-    if (!user) {
-      return res.status(404).send({
-        success: false,
-        message: "User not found",
-        searchedEmail: email,
-      });
-    }
-
-    res.status(200).send({
-      success: true,
-      user,
-    });
-  } catch (error) {
-    console.error("Get user by email error:", error);
-
-    res.status(500).send({
-      success: false,
-      message: "Failed to get user",
-    });
-  }
-});
-
-    // -------------------------------------------------
-    // Update User Profile
-    // -------------------------------------------------
 
     app.patch("/users/:email", async (req, res) => {
       try {
         const email = normalizeEmail(req.params.email);
-
-        const {
-          name,
-          phone,
-          photoURL,
-        } = req.body;
+        const { name, phone, photoURL } = req.body;
 
         if (!name || !name.trim()) {
-          return res.status(400).send({
-            success: false,
-            message: "Name is required",
-          });
+          return res
+            .status(400)
+            .send({ success: false, message: "Name is required" });
         }
 
         const updateData = {
@@ -273,121 +169,69 @@ app.get("/users/:email", async (req, res) => {
           updateData.photoURL = photoURL;
         }
 
-        const result =
-          await usersCollection.updateOne(
-            { email },
-            {
-              $set: updateData,
-            }
-          );
+        const result = await usersCollection.updateOne(
+          { email },
+          { $set: updateData },
+        );
 
         if (result.matchedCount === 0) {
-          return res.status(404).send({
-            success: false,
-            message: "User not found",
-          });
+          return res
+            .status(404)
+            .send({ success: false, message: "User not found" });
         }
 
-        const updatedUser =
-          await usersCollection.findOne({
-            email,
-          });
-
+        const updatedUser = await usersCollection.findOne({ email });
         res.send({
           success: true,
           message: "Profile updated successfully",
           user: updatedUser,
         });
       } catch (error) {
-        console.error(
-          "Update profile error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to update profile",
-        });
+        console.error("Update profile error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to update profile" });
       }
     });
 
-    // -------------------------------------------------
-    // Update User Role
-    // -------------------------------------------------
+    app.patch("/users/:email/role", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+        const { role } = req.body;
+        const allowedRoles = ["user", "owner", "admin"];
 
-    app.patch(
-      "/users/:email/role",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const { role } = req.body;
-
-          const allowedRoles = [
-            "user",
-            "owner",
-            "admin",
-          ];
-
-          if (!allowedRoles.includes(role)) {
-            return res.status(400).send({
-              success: false,
-              message: "Invalid role",
-            });
-          }
-
-          const result =
-            await usersCollection.updateOne(
-              { email },
-              {
-                $set: {
-                  role,
-                  updatedAt: new Date(),
-                },
-              }
-            );
-
-          if (result.matchedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message: "User not found",
-            });
-          }
-
-          const updatedUser =
-            await usersCollection.findOne({
-              email,
-            });
-
-          res.send({
-            success: true,
-            message: `User role updated to ${role}`,
-            user: updatedUser,
-          });
-        } catch (error) {
-          console.error(
-            "Update role error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message: "Failed to update user role",
-          });
+        if (!allowedRoles.includes(role)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid role" });
         }
+
+        const result = await usersCollection.updateOne(
+          { email },
+          { $set: { role, updatedAt: new Date() } },
+        );
+
+        if (result.matchedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "User not found" });
+        }
+
+        const updatedUser = await usersCollection.findOne({ email });
+        res.send({
+          success: true,
+          message: `User role updated to ${role}`,
+          user: updatedUser,
+        });
+      } catch (error) {
+        console.error("Update role error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to update user role" });
       }
-    );
+    });
 
-    // =================================================
-    // TURF API
-    // =================================================
-
-    // -------------------------------------------------
-    // Create Turf
-    // -------------------------------------------------
-
+    // --- TURF API ---
     app.post("/turfs", async (req, res) => {
       try {
         const turfData = req.body;
@@ -401,18 +245,15 @@ app.get("/users/:email", async (req, res) => {
         ) {
           return res.status(400).send({
             success: false,
-            message:
-              "Required turf information is missing",
+            message: "Required turf information is missing",
           });
         }
 
         const price = Number(turfData.price);
-
         if (Number.isNaN(price) || price < 0) {
-          return res.status(400).send({
-            success: false,
-            message: "Invalid turf price",
-          });
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf price" });
         }
 
         const newTurf = {
@@ -423,872 +264,745 @@ app.get("/users/:email", async (req, res) => {
           image: turfData.image || "",
           size: turfData.size || "",
           surface: turfData.surface || "",
-
-          facilities: Array.isArray(
-            turfData.facilities
-          )
+          facilities: Array.isArray(turfData.facilities)
             ? turfData.facilities
             : [],
-
-          ownerEmail: normalizeEmail(
-            turfData.ownerEmail
-          ),
-
+          ownerEmail: normalizeEmail(turfData.ownerEmail),
           ownerId: turfData.ownerId || "",
-
           status: "pending",
-
           createdAt: new Date(),
           updatedAt: new Date(),
         };
 
-        const result =
-          await turfsCollection.insertOne(
-            newTurf
-          );
-
+        const result = await turfsCollection.insertOne(newTurf);
         res.status(201).send({
           success: true,
-          message:
-            "Turf submitted successfully. Waiting for admin approval.",
+          message: "Turf submitted successfully. Waiting for admin approval.",
           turfId: result.insertedId,
         });
       } catch (error) {
-        console.error(
-          "Create turf error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to create turf",
-        });
+        console.error("Create turf error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to create turf" });
       }
     });
-
-    // -------------------------------------------------
-    // Get Approved Turfs
-    // -------------------------------------------------
 
     app.get("/turfs", async (req, res) => {
       try {
-        const result =
-          await turfsCollection
-            .find({
-              status: "approved",
-            })
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
-
+        const result = await turfsCollection
+          .find({ status: "approved" })
+          .sort({ createdAt: -1 })
+          .toArray();
         res.send(result);
       } catch (error) {
-        console.error(
-          "Get turfs error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to get turfs",
-        });
+        console.error("Get turfs error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get turfs" });
       }
     });
-
-    // -------------------------------------------------
-    // Get Single Turf
-    // -------------------------------------------------
 
     app.get("/turfs/:id", async (req, res) => {
       try {
         const id = req.params.id;
-
         if (!isValidObjectId(id)) {
-          return res.status(400).send({
-            success: false,
-            message: "Invalid turf ID",
-          });
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf ID" });
         }
 
-        const turf =
-          await turfsCollection.findOne({
-            _id: new ObjectId(id),
-          });
-
+        const turf = await turfsCollection.findOne({ _id: new ObjectId(id) });
         if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message: "Turf not found",
-          });
+          return res
+            .status(404)
+            .send({ success: false, message: "Turf not found" });
         }
 
         res.send(turf);
       } catch (error) {
-        console.error(
-          "Get turf error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to get turf",
-        });
+        console.error("Get turf error:", error);
+        res.status(500).send({ success: false, message: "Failed to get turf" });
       }
     });
 
-    // -------------------------------------------------
-    // Get Owner's Turfs
-    // -------------------------------------------------
-
-    app.get(
-      "/owner/turfs/:email",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const result =
-            await turfsCollection
-              .find({
-                ownerEmail: email,
-              })
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(result);
-        } catch (error) {
-          console.error(
-            "Get owner turfs error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get owner turfs",
-          });
-        }
+    app.get("/owner/turfs/:email", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+        const result = await turfsCollection
+          .find({ ownerEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Get owner turfs error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get owner turfs" });
       }
-    );
-
-    // -------------------------------------------------
-    // Update Turf
-    // -------------------------------------------------
+    });
 
     app.patch("/turfs/:id", async (req, res) => {
       try {
         const id = req.params.id;
-
         if (!isValidObjectId(id)) {
-          return res.status(400).send({
-            success: false,
-            message: "Invalid turf ID",
-          });
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf ID" });
         }
 
-        const updatedData = {
-          ...req.body,
-          updatedAt: new Date(),
-        };
-
+        const updatedData = { ...req.body, updatedAt: new Date() };
         delete updatedData._id;
         delete updatedData.status;
         delete updatedData.ownerEmail;
         delete updatedData.ownerId;
 
-        if (updatedData.name) {
-          updatedData.name =
-            updatedData.name.trim();
-        }
-
-        if (updatedData.location) {
-          updatedData.location =
-            updatedData.location.trim();
-        }
+        if (updatedData.name) updatedData.name = updatedData.name.trim();
+        if (updatedData.location)
+          updatedData.location = updatedData.location.trim();
 
         if (updatedData.price !== undefined) {
-          const price = Number(
-            updatedData.price
-          );
-
+          const price = Number(updatedData.price);
           if (Number.isNaN(price) || price < 0) {
-            return res.status(400).send({
-              success: false,
-              message: "Invalid turf price",
-            });
+            return res
+              .status(400)
+              .send({ success: false, message: "Invalid turf price" });
           }
-
           updatedData.price = price;
         }
 
-        const result =
-          await turfsCollection.updateOne(
-            {
-              _id: new ObjectId(id),
-            },
-            {
-              $set: updatedData,
-            }
-          );
+        const result = await turfsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedData },
+        );
 
         if (result.matchedCount === 0) {
-          return res.status(404).send({
-            success: false,
-            message: "Turf not found",
-          });
+          return res
+            .status(404)
+            .send({ success: false, message: "Turf not found" });
         }
 
-        const updatedTurf =
-          await turfsCollection.findOne({
-            _id: new ObjectId(id),
-          });
-
+        const updatedTurf = await turfsCollection.findOne({
+          _id: new ObjectId(id),
+        });
         res.send({
           success: true,
           message: "Turf updated successfully",
           turf: updatedTurf,
         });
       } catch (error) {
-        console.error(
-          "Update turf error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to update turf",
-        });
+        console.error("Update turf error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to update turf" });
       }
     });
-
-    // -------------------------------------------------
-    // Delete Turf
-    // -------------------------------------------------
 
     app.delete("/turfs/:id", async (req, res) => {
       try {
         const id = req.params.id;
-
         if (!isValidObjectId(id)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf ID" });
+        }
+
+        const result = await turfsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        if (result.deletedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Turf not found" });
+        }
+
+        await wishlistCollection.deleteMany({ turfId: id });
+        res.send({ success: true, message: "Turf deleted successfully" });
+      } catch (error) {
+        console.error("Delete turf error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to delete turf" });
+      }
+    });
+
+    // --- ADMIN USERS API ---
+    app.get("/admin/users", async (req, res) => {
+      try {
+        const users = await usersCollection
+          .find({})
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(users);
+      } catch (error) {
+        console.error("Get admin users error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get users" });
+      }
+    });
+
+    app.get("/admin/customers", async (req, res) => {
+      try {
+        const customers = await usersCollection
+          .find({ role: "user" })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(customers);
+      } catch (error) {
+        console.error("Get customers error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get customers" });
+      }
+    });
+
+    app.get("/admin/owners", async (req, res) => {
+      try {
+        const owners = await usersCollection
+          .find({ role: "owner" })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(owners);
+      } catch (error) {
+        console.error("Get owners error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get owners" });
+      }
+    });
+
+    app.get("/admin/admins", async (req, res) => {
+      try {
+        const admins = await usersCollection
+          .find({ role: "admin" })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(admins);
+      } catch (error) {
+        console.error("Get admins error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get admins" });
+      }
+    });
+
+    app.delete("/admin/users/:email", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res
+            .status(404)
+            .send({ success: false, message: "User not found" });
+        }
+
+        if (user.role === "admin") {
+          return res.status(403).send({
+            success: false,
+            message: "Admin account cannot be deleted",
+          });
+        }
+
+        const result = await usersCollection.deleteOne({ email });
+        if (result.deletedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "User not found" });
+        }
+
+        res.send({ success: true, message: "User deleted successfully" });
+      } catch (error) {
+        console.error("Delete user error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to delete user" });
+      }
+    });
+
+    app.patch("/admin/users/:email/role", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+        const { role } = req.body;
+        const allowedRoles = ["user", "owner", "admin"];
+
+        if (!allowedRoles.includes(role)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid role" });
+        }
+
+        const result = await usersCollection.updateOne(
+          { email },
+          { $set: { role, updatedAt: new Date() } },
+        );
+
+        if (result.matchedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "User not found" });
+        }
+
+        const updatedUser = await usersCollection.findOne({ email });
+        res.send({
+          success: true,
+          message: `User role changed to ${role}`,
+          user: updatedUser,
+        });
+      } catch (error) {
+        console.error("Admin role update error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to update user role" });
+      }
+    });
+
+    // --- ADMIN TURF API ---
+    app.get("/admin/turfs", async (req, res) => {
+      try {
+        const turfs = await turfsCollection
+          .find({})
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(turfs);
+      } catch (error) {
+        console.error("Get admin turfs error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get turfs" });
+      }
+    });
+
+    app.get("/admin/turfs/pending", async (req, res) => {
+      try {
+        const turfs = await turfsCollection
+          .find({ status: "pending" })
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(turfs);
+      } catch (error) {
+        console.error("Get pending turfs error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get pending turfs" });
+      }
+    });
+
+    app.patch("/admin/turfs/:id/approve", async (req, res) => {
+      try {
+        const id = req.params.id;
+        if (!isValidObjectId(id)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf ID" });
+        }
+
+        const result = await turfsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: "approved",
+              approvedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Turf not found" });
+        }
+
+        res.send({ success: true, message: "Turf approved successfully" });
+      } catch (error) {
+        console.error("Approve turf error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to approve turf" });
+      }
+    });
+
+    app.patch("/admin/turfs/:id/reject", async (req, res) => {
+      try {
+        const id = req.params.id;
+        if (!isValidObjectId(id)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf ID" });
+        }
+
+        const result = await turfsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status: "rejected",
+              rejectedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        if (result.matchedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Turf not found" });
+        }
+
+        res.send({ success: true, message: "Turf rejected successfully" });
+      } catch (error) {
+        console.error("Reject turf error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to reject turf" });
+      }
+    });
+
+    app.delete("/admin/turfs/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        if (!isValidObjectId(id)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf ID" });
+        }
+
+        const result = await turfsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        if (result.deletedCount === 0) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Turf not found" });
+        }
+
+        await wishlistCollection.deleteMany({ turfId: id });
+        res.send({ success: true, message: "Turf deleted successfully" });
+      } catch (error) {
+        console.error("Admin delete turf error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to delete turf" });
+      }
+    });
+
+    // --- WISHLIST API ---
+
+    // Get logged-in user's wishlist
+    app.get("/wishlist/:email", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+
+        if (!email) {
+          return res.status(400).send({
+            success: false,
+            message: "User email is required",
+          });
+        }
+
+        const wishlistItems = await wishlistCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        if (wishlistItems.length === 0) {
+          return res.send([]);
+        }
+
+        // Get all turf IDs
+        const turfIds = wishlistItems
+          .map((item) => item.turfId)
+          .filter((id) => isValidObjectId(id))
+          .map((id) => new ObjectId(id));
+
+        // Get related turfs
+        const turfs = await turfsCollection
+          .find({
+            _id: { $in: turfIds },
+            status: "approved",
+          })
+          .toArray();
+
+        // Match wishlist with turf
+        const wishlistWithTurfs = wishlistItems
+          .map((item) => {
+            const turf = turfs.find(
+              (turf) => turf._id.toString() === String(item.turfId),
+            );
+
+            if (!turf) return null;
+
+            return {
+              wishlistId: item._id,
+              turfId: turf._id,
+              name: turf.name,
+              location: turf.location,
+              description: turf.description || "",
+              price: turf.price || 0,
+              image: turf.image || "",
+              size: turf.size || "",
+              surface: turf.surface || "",
+              facilities: turf.facilities || [],
+              ownerEmail: turf.ownerEmail || "",
+              status: turf.status,
+              createdAt: item.createdAt,
+            };
+          })
+          .filter(Boolean);
+
+        res.send(wishlistWithTurfs);
+      } catch (error) {
+        console.error("Get wishlist error:", error);
+
+        res.status(500).send({
+          success: false,
+          message: "Failed to get wishlist",
+        });
+      }
+    });
+
+    // Add turf to wishlist
+    app.post("/wishlist", async (req, res) => {
+      try {
+        const { userEmail, turfId } = req.body;
+
+        if (!userEmail || !turfId) {
+          return res.status(400).send({
+            success: false,
+            message: "User email and turf ID are required",
+          });
+        }
+
+        if (!isValidObjectId(turfId)) {
           return res.status(400).send({
             success: false,
             message: "Invalid turf ID",
           });
         }
 
-        const result =
-          await turfsCollection.deleteOne({
-            _id: new ObjectId(id),
+        const email = normalizeEmail(userEmail);
+
+        // Check turf
+        const turf = await turfsCollection.findOne({
+          _id: new ObjectId(turfId),
+          status: "approved",
+        });
+
+        if (!turf) {
+          return res.status(404).send({
+            success: false,
+            message: "Approved turf not found",
           });
+        }
+
+        // Check duplicate wishlist
+        const existingWishlist = await wishlistCollection.findOne({
+          userEmail: email,
+          turfId: String(turfId),
+        });
+
+        if (existingWishlist) {
+          return res.status(200).send({
+            success: true,
+            message: "Turf is already in wishlist",
+            wishlist: existingWishlist,
+          });
+        }
+
+        const newWishlist = {
+          userEmail: email,
+          turfId: String(turfId),
+          createdAt: new Date(),
+        };
+
+        const result = await wishlistCollection.insertOne(newWishlist);
+
+        const createdWishlist = await wishlistCollection.findOne({
+          _id: result.insertedId,
+        });
+
+        res.status(201).send({
+          success: true,
+          message: "Turf added to wishlist",
+          wishlist: createdWishlist,
+        });
+      } catch (error) {
+        console.error("Add wishlist error:", error);
+
+        res.status(500).send({
+          success: false,
+          message: "Failed to add turf to wishlist",
+        });
+      }
+    });
+
+    // Remove turf from wishlist
+    app.delete("/wishlist/:email/:turfId", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+        const { turfId } = req.params;
+
+        if (!email || !turfId) {
+          return res.status(400).send({
+            success: false,
+            message: "User email and turf ID are required",
+          });
+        }
+
+        if (!isValidObjectId(turfId)) {
+          return res.status(400).send({
+            success: false,
+            message: "Invalid turf ID",
+          });
+        }
+
+        const result = await wishlistCollection.deleteOne({
+          userEmail: email,
+          turfId: String(turfId),
+        });
 
         if (result.deletedCount === 0) {
           return res.status(404).send({
             success: false,
-            message: "Turf not found",
+            message: "Turf is not in wishlist",
           });
         }
 
-        await wishlistCollection.deleteMany({
-          turfId: id,
+        res.send({
+          success: true,
+          message: "Turf removed from wishlist",
+        });
+      } catch (error) {
+        console.error("Remove wishlist error:", error);
+
+        res.status(500).send({
+          success: false,
+          message: "Failed to remove turf from wishlist",
+        });
+      }
+    });
+
+    // Check whether a turf is in wishlist
+    app.get("/wishlist/check/:email/:turfId", async (req, res) => {
+      try {
+        const email = normalizeEmail(req.params.email);
+        const { turfId } = req.params;
+
+        if (!email || !turfId) {
+          return res.status(400).send({
+            success: false,
+            message: "User email and turf ID are required",
+          });
+        }
+
+        const wishlist = await wishlistCollection.findOne({
+          userEmail: email,
+          turfId: String(turfId),
         });
 
         res.send({
           success: true,
-          message: "Turf deleted successfully",
+          isWishlisted: !!wishlist,
         });
       } catch (error) {
-        console.error(
-          "Delete turf error:",
-          error
-        );
+        console.error("Check wishlist error:", error);
 
         res.status(500).send({
           success: false,
-          message: "Failed to delete turf",
+          message: "Failed to check wishlist",
         });
       }
     });
 
-    // =================================================
-    // ADMIN USERS API
-    // =================================================
-
-    // -------------------------------------------------
-    // Get All Users
-    // -------------------------------------------------
-
-    app.get("/admin/users", async (req, res) => {
+    // --- BOOKING API ---
+    app.get("/bookings/availability", async (req, res) => {
       try {
-        const users =
-          await usersCollection
-            .find({})
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
+        const { turfId, date } = req.query;
+        if (!turfId || !date) {
+          return res.status(400).send({
+            success: false,
+            message: "Turf ID and date are required",
+          });
+        }
 
-        res.send(users);
+        const bookings = await bookingsCollection
+          .find({
+            turfId,
+            date,
+            status: { $in: ["pending", "confirmed"] },
+          })
+          .sort({ startTime: 1 })
+          .toArray();
+
+        res.send(bookings);
       } catch (error) {
-        console.error(
-          "Get admin users error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to get users",
-        });
+        console.error("Availability error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get availability" });
       }
     });
 
-    // -------------------------------------------------
-    // Customers
-    // -------------------------------------------------
-
-    app.get(
-      "/admin/customers",
-      async (req, res) => {
-        try {
-          const customers =
-            await usersCollection
-              .find({
-                role: "user",
-              })
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(customers);
-        } catch (error) {
-          console.error(
-            "Get customers error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get customers",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Owners
-    // -------------------------------------------------
-
-    app.get("/admin/owners", async (req, res) => {
+    app.get("/bookings/user/:email", async (req, res) => {
       try {
-        const owners =
-          await usersCollection
-            .find({
-              role: "owner",
-            })
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
+        const email = normalizeEmail(req.params.email);
+        if (!email) {
+          return res
+            .status(400)
+            .send({ success: false, message: "User email is required" });
+        }
 
-        res.send(owners);
+        console.log("Fetching bookings for:", email);
+        const bookings = await bookingsCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        console.log(`Found ${bookings.length} bookings for ${email}`);
+        res.send(bookings);
       } catch (error) {
-        console.error(
-          "Get owners error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to get owners",
-        });
+        console.error("Get user bookings error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get user bookings" });
       }
     });
 
-    // -------------------------------------------------
-    // Admins
-    // -------------------------------------------------
-
-    app.get("/admin/admins", async (req, res) => {
+    app.get("/bookings/:id", async (req, res) => {
       try {
-        const admins =
-          await usersCollection
-            .find({
-              role: "admin",
-            })
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
+        const id = req.params.id;
+        if (!isValidObjectId(id)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid booking ID" });
+        }
 
-        res.send(admins);
-      } catch (error) {
-        console.error(
-          "Get admins error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to get admins",
+        const booking = await bookingsCollection.findOne({
+          _id: new ObjectId(id),
         });
+        if (!booking) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Booking not found" });
+        }
+
+        res.send(booking);
+      } catch (error) {
+        console.error("Get booking error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to get booking" });
       }
     });
-
-    // -------------------------------------------------
-    // Delete User
-    // -------------------------------------------------
-
-    app.delete(
-      "/admin/users/:email",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const user =
-            await usersCollection.findOne({
-              email,
-            });
-
-          if (!user) {
-            return res.status(404).send({
-              success: false,
-              message: "User not found",
-            });
-          }
-
-          if (user.role === "admin") {
-            return res.status(403).send({
-              success: false,
-              message:
-                "Admin account cannot be deleted",
-            });
-          }
-
-          const result =
-            await usersCollection.deleteOne({
-              email,
-            });
-
-          if (result.deletedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message: "User not found",
-            });
-          }
-
-          res.send({
-            success: true,
-            message: "User deleted successfully",
-          });
-        } catch (error) {
-          console.error(
-            "Delete user error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to delete user",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Admin Update User Role
-    // -------------------------------------------------
-
-    app.patch(
-      "/admin/users/:email/role",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const { role } = req.body;
-
-          const allowedRoles = [
-            "user",
-            "owner",
-            "admin",
-          ];
-
-          if (!allowedRoles.includes(role)) {
-            return res.status(400).send({
-              success: false,
-              message: "Invalid role",
-            });
-          }
-
-          const result =
-            await usersCollection.updateOne(
-              { email },
-              {
-                $set: {
-                  role,
-                  updatedAt: new Date(),
-                },
-              }
-            );
-
-          if (result.matchedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message: "User not found",
-            });
-          }
-
-          const updatedUser =
-            await usersCollection.findOne({
-              email,
-            });
-
-          res.send({
-            success: true,
-            message:
-              `User role changed to ${role}`,
-            user: updatedUser,
-          });
-        } catch (error) {
-          console.error(
-            "Admin role update error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to update user role",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // ADMIN TURF API
-    // =================================================
-
-    // -------------------------------------------------
-    // Get All Turfs
-    // -------------------------------------------------
-
-    app.get("/admin/turfs", async (req, res) => {
-      try {
-        const turfs =
-          await turfsCollection
-            .find({})
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
-
-        res.send(turfs);
-      } catch (error) {
-        console.error(
-          "Get admin turfs error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message: "Failed to get turfs",
-        });
-      }
-    });
-
-    // -------------------------------------------------
-    // Pending Turfs
-    // -------------------------------------------------
-
-    app.get(
-      "/admin/turfs/pending",
-      async (req, res) => {
-        try {
-          const turfs =
-            await turfsCollection
-              .find({
-                status: "pending",
-              })
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(turfs);
-        } catch (error) {
-          console.error(
-            "Get pending turfs error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get pending turfs",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Approve Turf
-    // -------------------------------------------------
-
-    app.patch(
-      "/admin/turfs/:id/approve",
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-
-          if (!isValidObjectId(id)) {
-            return res.status(400).send({
-              success: false,
-              message: "Invalid turf ID",
-            });
-          }
-
-          const result =
-            await turfsCollection.updateOne(
-              {
-                _id: new ObjectId(id),
-              },
-              {
-                $set: {
-                  status: "approved",
-                  approvedAt: new Date(),
-                  updatedAt: new Date(),
-                },
-              }
-            );
-
-          if (result.matchedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message: "Turf not found",
-            });
-          }
-
-          res.send({
-            success: true,
-            message:
-              "Turf approved successfully",
-          });
-        } catch (error) {
-          console.error(
-            "Approve turf error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to approve turf",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Reject Turf
-    // -------------------------------------------------
-
-    app.patch(
-      "/admin/turfs/:id/reject",
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-
-          if (!isValidObjectId(id)) {
-            return res.status(400).send({
-              success: false,
-              message: "Invalid turf ID",
-            });
-          }
-
-          const result =
-            await turfsCollection.updateOne(
-              {
-                _id: new ObjectId(id),
-              },
-              {
-                $set: {
-                  status: "rejected",
-                  rejectedAt: new Date(),
-                  updatedAt: new Date(),
-                },
-              }
-            );
-
-          if (result.matchedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message: "Turf not found",
-            });
-          }
-
-          res.send({
-            success: true,
-            message:
-              "Turf rejected successfully",
-          });
-        } catch (error) {
-          console.error(
-            "Reject turf error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to reject turf",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Delete Admin Turf
-    // -------------------------------------------------
-
-    app.delete(
-      "/admin/turfs/:id",
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-
-          if (!isValidObjectId(id)) {
-            return res.status(400).send({
-              success: false,
-              message: "Invalid turf ID",
-            });
-          }
-
-          const result =
-            await turfsCollection.deleteOne({
-              _id: new ObjectId(id),
-            });
-
-          if (result.deletedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message: "Turf not found",
-            });
-          }
-
-          await wishlistCollection.deleteMany({
-            turfId: id,
-          });
-
-          res.send({
-            success: true,
-            message:
-              "Turf deleted successfully",
-          });
-        } catch (error) {
-          console.error(
-            "Admin delete turf error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to delete turf",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // BOOKING API
-    // =================================================
-
-    // -------------------------------------------------
-    // Check Availability
-    // -------------------------------------------------
-
-    app.get(
-      "/bookings/availability",
-      async (req, res) => {
-        try {
-          const { turfId, date } = req.query;
-
-          if (!turfId || !date) {
-            return res.status(400).send({
-              success: false,
-              message:
-                "Turf ID and date are required",
-            });
-          }
-
-          const bookings =
-            await bookingsCollection
-              .find({
-                turfId,
-                date,
-                status: {
-                  $in: [
-                    "pending",
-                    "confirmed",
-                  ],
-                },
-              })
-              .sort({
-                startTime: 1,
-              })
-              .toArray();
-
-          res.send(bookings);
-        } catch (error) {
-          console.error(
-            "Availability error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get availability",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Create Booking
-    // -------------------------------------------------
 
     app.post("/bookings", async (req, res) => {
       try {
         const booking = req.body;
+        const { turfId, userEmail, userName, date, startTime, endTime } =
+          booking;
 
-        const {
-          turfId,
-          turfName,
-          userEmail,
-          userName,
-          date,
-          startTime,
-          endTime,
-          price,
-        } = booking;
-
-        if (
-          !turfId ||
-          !userEmail ||
-          !date ||
-          !startTime ||
-          !endTime
-        ) {
+        if (!turfId || !userEmail || !date || !startTime || !endTime) {
           return res.status(400).send({
             success: false,
             message:
@@ -1296,1022 +1010,142 @@ app.get("/users/:email", async (req, res) => {
           });
         }
 
-        // Verify Turf
-
-        let turf = null;
-
-        if (isValidObjectId(turfId)) {
-          turf =
-            await turfsCollection.findOne({
-              _id: new ObjectId(turfId),
-              status: "approved",
-            });
+        if (!isValidObjectId(turfId)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf ID" });
         }
+
+        const normalizedUserEmail = normalizeEmail(userEmail);
+        const turf = await turfsCollection.findOne({
+          _id: new ObjectId(turfId),
+          status: "approved",
+        });
 
         if (!turf) {
           return res.status(404).send({
             success: false,
-            message:
-              "Approved turf not found",
+            message: "Approved turf not found",
           });
         }
 
-        // Check overlap
-
-        const existingBooking =
-          await bookingsCollection.findOne({
-            turfId,
-            date,
-
-            status: {
-              $in: [
-                "pending",
-                "confirmed",
-              ],
-            },
-
-            startTime: {
-              $lt: endTime,
-            },
-
-            endTime: {
-              $gt: startTime,
-            },
-          });
+        const existingBooking = await bookingsCollection.findOne({
+          turfId,
+          date,
+          status: { $in: ["pending", "confirmed"] },
+          startTime: { $lt: endTime },
+          endTime: { $gt: startTime },
+        });
 
         if (existingBooking) {
           return res.status(409).send({
             success: false,
-            message:
-              "This time slot is already booked",
+            message: "This time slot is already booked",
           });
         }
 
-        const finalPrice =
-          price !== undefined &&
-          price !== null
-            ? Number(price)
-            : Number(turf.price);
+        const finalPrice = Number(turf.price);
+        if (Number.isNaN(finalPrice) || finalPrice < 0) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid turf price" });
+        }
 
         const newBooking = {
-          turfId,
-
-          turfName:
-            turfName || turf.name,
-
-          userEmail:
-            normalizeEmail(userEmail),
-
-          userName: userName || "",
-
-          ownerEmail:
-            normalizeEmail(
-              turf.ownerEmail || ""
-            ),
-
-          date,
-
-          startTime,
-
-          endTime,
-
-          price:
-            Number.isNaN(finalPrice)
-              ? 0
-              : finalPrice,
-
+          turfId: String(turfId),
+          turfName: turf.name,
+          location: turf.location || "",
+          userEmail: normalizedUserEmail,
+          userName: userName ? String(userName).trim() : "",
+          ownerEmail: normalizeEmail(turf.ownerEmail || ""),
+          date: String(date),
+          startTime: String(startTime),
+          endTime: String(endTime),
+          price: finalPrice,
           status: "pending",
-
           paymentStatus: "unpaid",
-
           createdAt: new Date(),
           updatedAt: new Date(),
         };
 
-        const result =
-          await bookingsCollection.insertOne(
-            newBooking
-          );
+        const result = await bookingsCollection.insertOne(newBooking);
+        const createdBooking = await bookingsCollection.findOne({
+          _id: result.insertedId,
+        });
 
         res.status(201).send({
           success: true,
-          message:
-            "Booking created successfully",
+          message: "Booking created successfully",
           bookingId: result.insertedId,
+          booking: createdBooking,
         });
       } catch (error) {
-        console.error(
-          "Create booking error:",
-          error
+        console.error("Create booking error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to create booking" });
+      }
+    });
+
+    app.patch("/bookings/:id/cancel", async (req, res) => {
+      try {
+        const id = req.params.id;
+        if (!isValidObjectId(id)) {
+          return res
+            .status(400)
+            .send({ success: false, message: "Invalid booking ID" });
+        }
+
+        const booking = await bookingsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!booking) {
+          return res
+            .status(404)
+            .send({ success: false, message: "Booking not found" });
+        }
+
+        if (booking.status === "cancelled") {
+          return res.status(400).send({
+            success: false,
+            message: "Booking is already cancelled",
+          });
+        }
+
+        if (booking.status === "completed") {
+          return res.status(400).send({
+            success: false,
+            message: "Completed booking cannot be cancelled",
+          });
+        }
+
+        const result = await bookingsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "cancelled", updatedAt: new Date() } },
         );
 
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to create booking",
-        });
-      }
-    });
-
-    // -------------------------------------------------
-    // Get User Bookings
-    // -------------------------------------------------
-
-    app.get(
-      "/bookings/user/:email",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const result =
-            await bookingsCollection
-              .find({
-                userEmail: email,
-              })
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(result);
-        } catch (error) {
-          console.error(
-            "Get user bookings error:",
-            error
-          );
-
-          res.status(500).send({
+        if (result.modifiedCount === 0) {
+          return res.status(400).send({
             success: false,
-            message:
-              "Failed to get bookings",
+            message: "Booking cancellation failed",
           });
         }
+
+        res.send({ success: true, message: "Booking cancelled successfully" });
+      } catch (error) {
+        console.error("Cancel booking error:", error);
+        res
+          .status(500)
+          .send({ success: false, message: "Failed to cancel booking" });
       }
-    );
-
-    // -------------------------------------------------
-    // Get Bookings By Turf
-    // -------------------------------------------------
-
-    app.get(
-      "/bookings/turf/:turfId",
-      async (req, res) => {
-        try {
-          const turfId =
-            req.params.turfId;
-
-          const result =
-            await bookingsCollection
-              .find({
-                turfId,
-              })
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(result);
-        } catch (error) {
-          console.error(
-            "Get turf bookings error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get turf bookings",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // OWNER BOOKING API
-    // =================================================
-
-    // -------------------------------------------------
-    // Get Owner Bookings
-    // -------------------------------------------------
-
-    app.get(
-      "/owner/bookings/:email",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const result =
-            await bookingsCollection
-              .find({
-                ownerEmail: email,
-              })
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(result);
-        } catch (error) {
-          console.error(
-            "Get owner bookings error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get owner bookings",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Owner Revenue
-    // -------------------------------------------------
-
-    app.get(
-      "/owner/revenue/:email",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const result =
-            await bookingsCollection
-              .aggregate([
-                {
-                  $match: {
-                    ownerEmail: email,
-                    status: "confirmed",
-                    paymentStatus: "paid",
-                  },
-                },
-
-                {
-                  $group: {
-                    _id: "$turfId",
-
-                    turfName: {
-                      $first: "$turfName",
-                    },
-
-                    totalBookings: {
-                      $sum: 1,
-                    },
-
-                    totalRevenue: {
-                      $sum: "$price",
-                    },
-                  },
-                },
-
-                {
-                  $sort: {
-                    totalRevenue: -1,
-                  },
-                },
-              ])
-              .toArray();
-
-          res.send(result);
-        } catch (error) {
-          console.error(
-            "Owner revenue error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get owner revenue",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // BOOKING STATUS
-    // =================================================
-
-    // -------------------------------------------------
-    // Cancel Booking
-    // -------------------------------------------------
-
-    app.patch(
-      "/bookings/:id/cancel",
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-
-          if (!isValidObjectId(id)) {
-            return res.status(400).send({
-              success: false,
-              message:
-                "Invalid booking ID",
-            });
-          }
-
-          const result =
-            await bookingsCollection.updateOne(
-              {
-                _id: new ObjectId(id),
-
-                status: {
-                  $in: [
-                    "pending",
-                    "confirmed",
-                  ],
-                },
-              },
-              {
-                $set: {
-                  status: "cancelled",
-                  cancelledAt: new Date(),
-                  updatedAt: new Date(),
-                },
-              }
-            );
-
-          if (result.matchedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message:
-                "Booking not found or already cancelled",
-            });
-          }
-
-          res.send({
-            success: true,
-            message:
-              "Booking cancelled successfully",
-          });
-        } catch (error) {
-          console.error(
-            "Cancel booking error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to cancel booking",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Update Booking Status
-    // -------------------------------------------------
-
-    app.patch(
-      "/bookings/:id/status",
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-          const { status } = req.body;
-
-          if (!isValidObjectId(id)) {
-            return res.status(400).send({
-              success: false,
-              message:
-                "Invalid booking ID",
-            });
-          }
-
-          const allowedStatuses = [
-            "pending",
-            "confirmed",
-            "cancelled",
-          ];
-
-          if (
-            !allowedStatuses.includes(status)
-          ) {
-            return res.status(400).send({
-              success: false,
-              message:
-                "Invalid booking status",
-            });
-          }
-
-          const updateData = {
-            status,
-            updatedAt: new Date(),
-          };
-
-          if (status === "confirmed") {
-            updateData.confirmedAt =
-              new Date();
-          }
-
-          if (status === "cancelled") {
-            updateData.cancelledAt =
-              new Date();
-          }
-
-          const result =
-            await bookingsCollection.updateOne(
-              {
-                _id: new ObjectId(id),
-              },
-              {
-                $set: updateData,
-              }
-            );
-
-          if (result.matchedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message:
-                "Booking not found",
-            });
-          }
-
-          res.send({
-            success: true,
-            message:
-              `Booking ${status} successfully`,
-          });
-        } catch (error) {
-          console.error(
-            "Update booking status error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to update booking status",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Update Payment Status
-    // -------------------------------------------------
-
-    app.patch(
-      "/bookings/:id/payment",
-      async (req, res) => {
-        try {
-          const id = req.params.id;
-          const { paymentStatus } = req.body;
-
-          if (!isValidObjectId(id)) {
-            return res.status(400).send({
-              success: false,
-              message:
-                "Invalid booking ID",
-            });
-          }
-
-          const allowedPaymentStatuses = [
-            "unpaid",
-            "paid",
-            "refunded",
-          ];
-
-          if (
-            !allowedPaymentStatuses.includes(
-              paymentStatus
-            )
-          ) {
-            return res.status(400).send({
-              success: false,
-              message:
-                "Invalid payment status",
-            });
-          }
-
-          const updateData = {
-            paymentStatus,
-            updatedAt: new Date(),
-          };
-
-          if (paymentStatus === "paid") {
-            updateData.paidAt = new Date();
-          }
-
-          if (
-            paymentStatus === "refunded"
-          ) {
-            updateData.refundedAt =
-              new Date();
-          }
-
-          const result =
-            await bookingsCollection.updateOne(
-              {
-                _id: new ObjectId(id),
-              },
-              {
-                $set: updateData,
-              }
-            );
-
-          if (result.matchedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message:
-                "Booking not found",
-            });
-          }
-
-          res.send({
-            success: true,
-            message:
-              "Payment status updated successfully",
-          });
-        } catch (error) {
-          console.error(
-            "Payment status error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to update payment status",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // ADMIN BOOKING API
-    // =================================================
-
-    // -------------------------------------------------
-    // Get All Bookings
-    // -------------------------------------------------
-
-    app.get(
-      "/admin/bookings",
-      async (req, res) => {
-        try {
-          const bookings =
-            await bookingsCollection
-              .find({})
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(bookings);
-        } catch (error) {
-          console.error(
-            "Get admin bookings error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get bookings",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // ADMIN DASHBOARD
-    // =================================================
-
-    // -------------------------------------------------
-    // Dashboard Statistics
-    // -------------------------------------------------
-
-    app.get(
-      "/admin/stats",
-      async (req, res) => {
-        try {
-          const [
-            totalUsers,
-            totalOwners,
-            totalAdmins,
-            totalTurfs,
-            approvedTurfs,
-            pendingTurfs,
-            rejectedTurfs,
-            totalBookings,
-            pendingBookings,
-            confirmedBookings,
-            cancelledBookings,
-          ] = await Promise.all([
-            usersCollection.countDocuments({
-              role: "user",
-            }),
-
-            usersCollection.countDocuments({
-              role: "owner",
-            }),
-
-            usersCollection.countDocuments({
-              role: "admin",
-            }),
-
-            turfsCollection.countDocuments({}),
-
-            turfsCollection.countDocuments({
-              status: "approved",
-            }),
-
-            turfsCollection.countDocuments({
-              status: "pending",
-            }),
-
-            turfsCollection.countDocuments({
-              status: "rejected",
-            }),
-
-            bookingsCollection.countDocuments({}),
-
-            bookingsCollection.countDocuments({
-              status: "pending",
-            }),
-
-            bookingsCollection.countDocuments({
-              status: "confirmed",
-            }),
-
-            bookingsCollection.countDocuments({
-              status: "cancelled",
-            }),
-          ]);
-
-          const revenueResult =
-            await bookingsCollection
-              .aggregate([
-                {
-                  $match: {
-                    status: "confirmed",
-                    paymentStatus: "paid",
-                  },
-                },
-
-                {
-                  $group: {
-                    _id: null,
-
-                    totalRevenue: {
-                      $sum: "$price",
-                    },
-                  },
-                },
-              ])
-              .toArray();
-
-          const totalRevenue =
-            revenueResult[0]?.totalRevenue || 0;
-
-          res.send({
-            success: true,
-
-            stats: {
-              totalUsers,
-              totalOwners,
-              totalAdmins,
-              totalTurfs,
-              approvedTurfs,
-              pendingTurfs,
-              rejectedTurfs,
-              totalBookings,
-              pendingBookings,
-              confirmedBookings,
-              cancelledBookings,
-              totalRevenue,
-            },
-          });
-        } catch (error) {
-          console.error(
-            "Admin stats error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get admin statistics",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // ADMIN REVENUE
-    // =================================================
-
-    app.get(
-      "/admin/revenue",
-      async (req, res) => {
-        try {
-          const result =
-            await bookingsCollection
-              .aggregate([
-                {
-                  $match: {
-                    status: "confirmed",
-                    paymentStatus: "paid",
-                  },
-                },
-
-                {
-                  $group: {
-                    _id: "$turfId",
-
-                    turfName: {
-                      $first: "$turfName",
-                    },
-
-                    ownerEmail: {
-                      $first: "$ownerEmail",
-                    },
-
-                    totalBookings: {
-                      $sum: 1,
-                    },
-
-                    totalRevenue: {
-                      $sum: "$price",
-                    },
-                  },
-                },
-
-                {
-                  $sort: {
-                    totalRevenue: -1,
-                  },
-                },
-              ])
-              .toArray();
-
-          res.send(result);
-        } catch (error) {
-          console.error(
-            "Admin revenue error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get revenue",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // WISHLIST API
-    // =================================================
-
-    // -------------------------------------------------
-    // Get Wishlist
-    // -------------------------------------------------
-
-    app.get(
-      "/wishlist/:email",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const wishlist =
-            await wishlistCollection
-              .find({
-                userEmail: email,
-              })
-              .sort({
-                createdAt: -1,
-              })
-              .toArray();
-
-          res.send(wishlist);
-        } catch (error) {
-          console.error(
-            "Get wishlist error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to get wishlist",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Add Wishlist
-    // -------------------------------------------------
-
-    app.post(
-      "/wishlist",
-      async (req, res) => {
-        try {
-          const {
-            userEmail,
-            turfId,
-            turfName,
-            turfImage,
-            turfLocation,
-            price,
-          } = req.body;
-
-          if (!userEmail || !turfId) {
-            return res.status(400).send({
-              success: false,
-              message:
-                "User email and turf ID are required",
-            });
-          }
-
-          const email =
-            normalizeEmail(userEmail);
-
-          const existing =
-            await wishlistCollection.findOne({
-              userEmail: email,
-              turfId,
-            });
-
-          if (existing) {
-            return res.status(200).send({
-              success: true,
-              message:
-                "Turf already in wishlist",
-              item: existing,
-            });
-          }
-
-          const wishlistItem = {
-            userEmail: email,
-
-            turfId,
-
-            turfName: turfName || "",
-
-            turfImage: turfImage || "",
-
-            turfLocation:
-              turfLocation || "",
-
-            price: Number(price) || 0,
-
-            createdAt: new Date(),
-          };
-
-          const result =
-            await wishlistCollection.insertOne(
-              wishlistItem
-            );
-
-          res.status(201).send({
-            success: true,
-            message: "Added to wishlist",
-            wishlistId:
-              result.insertedId,
-          });
-        } catch (error) {
-          console.error(
-            "Add wishlist error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to add wishlist",
-          });
-        }
-      }
-    );
-
-    // -------------------------------------------------
-    // Remove Wishlist
-    // -------------------------------------------------
-
-    app.delete(
-      "/wishlist/:email/:turfId",
-      async (req, res) => {
-        try {
-          const email = normalizeEmail(
-            req.params.email
-          );
-
-          const turfId =
-            req.params.turfId;
-
-          const result =
-            await wishlistCollection.deleteOne(
-              {
-                userEmail: email,
-                turfId,
-              }
-            );
-
-          if (result.deletedCount === 0) {
-            return res.status(404).send({
-              success: false,
-              message:
-                "Wishlist item not found",
-            });
-          }
-
-          res.send({
-            success: true,
-            message:
-              "Removed from wishlist",
-          });
-        } catch (error) {
-          console.error(
-            "Remove wishlist error:",
-            error
-          );
-
-          res.status(500).send({
-            success: false,
-            message:
-              "Failed to remove wishlist",
-          });
-        }
-      }
-    );
-
-    // =================================================
-    // MONGODB PING
-    // =================================================
-
-    await db.command({
-      ping: 1,
-    });
-
-    console.log(
-      "Pinged your deployment. Successfully connected to MongoDB!"
-    );
-
-    // =================================================
-    // 404 ROUTE
-    // =================================================
-
-    app.use((req, res) => {
-      res.status(404).send({
-        success: false,
-        message: "API route not found",
-        path: req.originalUrl,
-      });
-    });
-
-    // =================================================
-    // GLOBAL ERROR HANDLER
-    // =================================================
-
-    app.use(
-      (error, req, res, next) => {
-        console.error(
-          "Global error:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Internal server error",
-        });
-      }
-    );
-
-    // =================================================
-    // START SERVER
-    // =================================================
-
-    app.listen(port, () => {
-      console.log(
-        `Khelaro server is running on port ${port}`
-      );
     });
   } catch (error) {
-    console.error(
-      "MongoDB Connection Error:",
-      error
-    );
-
-    process.exit(1);
+    console.error("Server error:", error);
   }
 }
 
-// =====================================================
-// START APPLICATION
-// =====================================================
+run().catch(console.dir);
 
-run();
+app.listen(port, () => {
+  console.log(`Khelaro Server running on port ${port}`);
+});
