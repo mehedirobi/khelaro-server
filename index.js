@@ -4,11 +4,7 @@ const dotenv = require("dotenv");
 const dns = require("node:dns");
 const multer = require("multer");
 const { v2: cloudinary } = require("cloudinary");
-const {
-  MongoClient,
-  ServerApiVersion,
-  ObjectId,
-} = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 dotenv.config();
 
@@ -25,10 +21,14 @@ app.use(
   cors({
     origin: true,
     credentials: true,
-  })
+  }),
 );
 
-app.use(express.json({ limit: "2mb" }));
+app.use(
+  express.json({
+    limit: "2mb",
+  }),
+);
 
 // =========================
 // CLOUDINARY
@@ -46,20 +46,12 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-    ];
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
 
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(
-        new Error(
-          "Only JPG, PNG and WEBP images are allowed"
-        )
-      );
+      cb(new Error("Only JPG, PNG and WEBP images are allowed"));
     }
   },
 });
@@ -73,9 +65,7 @@ const normalizeEmail = (email = "") => {
 
   try {
     value = decodeURIComponent(value);
-  } catch {
-    // Keep original value if decoding fails.
-  }
+  } catch {}
 
   return value.trim().toLowerCase();
 };
@@ -85,9 +75,7 @@ const normalizeId = (id = "") => {
 
   try {
     value = decodeURIComponent(value);
-  } catch {
-    // Keep original value if decoding fails.
-  }
+  } catch {}
 
   return value.trim();
 };
@@ -97,9 +85,7 @@ const normalizeSlug = (slug = "") => {
 
   try {
     value = decodeURIComponent(value);
-  } catch {
-    // Keep original value if decoding fails.
-  }
+  } catch {}
 
   return value.trim().toLowerCase();
 };
@@ -107,9 +93,31 @@ const normalizeSlug = (slug = "") => {
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
 
-  return Number.isFinite(number)
-    ? number
-    : fallback;
+  return Number.isFinite(number) ? number : fallback;
+};
+
+const toBoolean = (value, fallback = true) => {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === "true") {
+      return true;
+    }
+
+    if (normalized === "false") {
+      return false;
+    }
+  }
+
+  return Boolean(value);
 };
 
 const isValidObjectId = (id) => {
@@ -123,15 +131,9 @@ const validateDate = (date) => {
     return false;
   }
 
-  const [year, month, day] = value
-    .split("-")
-    .map(Number);
+  const [year, month, day] = value.split("-").map(Number);
 
-  const parsed = new Date(
-    year,
-    month - 1,
-    day
-  );
+  const parsed = new Date(year, month - 1, day);
 
   return (
     parsed.getFullYear() === year &&
@@ -141,9 +143,7 @@ const validateDate = (date) => {
 };
 
 const validateTime = (time) => {
-  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(
-    String(time || "")
-  );
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(time || ""));
 };
 
 const cleanArray = (value) => {
@@ -151,26 +151,29 @@ const cleanArray = (value) => {
     return [];
   }
 
-  return value
-    .map((item) =>
-      String(item || "").trim()
-    )
-    .filter(Boolean);
+  return value.map((item) => String(item || "").trim()).filter(Boolean);
 };
 
 const getTurfStableId = (turf) => {
   if (!turf) return "";
 
+  if (turf.id) {
+    return String(turf.id).trim();
+  }
+
+  if (turf.turfId) {
+    return String(turf.turfId).trim();
+  }
+
+  if (turf.turf_id) {
+    return String(turf.turf_id).trim();
+  }
+
   if (turf._id) {
     return String(turf._id);
   }
 
-  return String(
-    turf.id ||
-      turf.turfId ||
-      turf.turf_id ||
-      ""
-  ).trim();
+  return "";
 };
 
 // =========================
@@ -182,132 +185,75 @@ const normalizeUserResponse = (user) => {
 
   return {
     ...user,
-    _id: user._id
-      ? String(user._id)
-      : "",
+    _id: user._id ? String(user._id) : "",
   };
 };
 
 const normalizeTurfResponse = (turf) => {
   if (!turf) return null;
 
-  const mongoId = turf._id
-    ? String(turf._id)
-    : "";
+  const mongoId = turf._id ? String(turf._id) : "";
 
-  const customId = String(
-    turf.id ||
-      turf.turfId ||
-      turf.turf_id ||
-      ""
-  ).trim();
+  const customId = String(turf.id || turf.turfId || turf.turf_id || "").trim();
 
-  const stableId =
-    customId || mongoId;
+  const stableId = customId || mongoId;
 
   return {
     ...turf,
 
     _id: mongoId,
-
     id: stableId,
-
     turfId: stableId,
 
-    slug: String(
-      turf.slug || ""
-    ).trim(),
+    slug: String(turf.slug || "").trim(),
 
-    name: String(
-      turf.name || ""
-    ).trim(),
+    name: String(turf.name || "").trim(),
 
-    location: String(
-      turf.location || ""
-    ).trim(),
+    location: String(turf.location || "").trim(),
 
-    area: String(
-      turf.area || ""
-    ).trim(),
+    area: String(turf.area || "").trim(),
 
-    sport: String(
-      turf.sport || ""
-    ).trim(),
+    sport: String(turf.sport || "").trim(),
 
-    image: String(
-      turf.image || ""
-    ).trim(),
+    image: String(turf.image || "").trim(),
 
     price: toNumber(turf.price),
 
     rating:
-      turf.rating !== undefined &&
-      turf.rating !== null &&
-      turf.rating !== ""
+      turf.rating !== undefined && turf.rating !== null && turf.rating !== ""
         ? toNumber(turf.rating)
         : null,
 
-    reviews: toNumber(
-      turf.reviews
-    ),
+    reviews: toNumber(turf.reviews),
 
-    size: String(
-      turf.size || ""
-    ).trim(),
+    size: String(turf.size || "").trim(),
 
-    surface: String(
-      turf.surface || ""
-    ).trim(),
+    surface: String(turf.surface || "").trim(),
 
-    openingTime: String(
-      turf.openingTime ||
-        "8:00 AM"
-    ).trim(),
+    openingTime: String(turf.openingTime || "8:00 AM").trim(),
 
-    closingTime: String(
-      turf.closingTime ||
-        "11:00 PM"
-    ).trim(),
+    closingTime: String(turf.closingTime || "11:00 PM").trim(),
 
-    description: String(
-      turf.description || ""
-    ).trim(),
+    description: String(turf.description || "").trim(),
 
-    amenities: cleanArray(
-      turf.amenities
-    ),
+    amenities: cleanArray(turf.amenities),
 
-    features: cleanArray(
-      turf.features
-    ),
+    features: cleanArray(turf.features),
 
-    status: String(
-      turf.status || ""
-    ).trim(),
+    status: String(turf.status || "").trim(),
 
-    available:
-      turf.available !== undefined
-        ? Boolean(turf.available)
-        : true,
+    available: toBoolean(turf.available, true),
 
-    ownerEmail: normalizeEmail(
-      turf.ownerEmail
-    ),
+    ownerEmail: normalizeEmail(turf.ownerEmail),
   };
 };
 
-const normalizeBookingResponse = (
-  booking
-) => {
+const normalizeBookingResponse = (booking) => {
   if (!booking) return null;
 
   const id = booking._id
     ? String(booking._id)
-    : String(
-        booking.id ||
-          booking.bookingId ||
-          ""
-      );
+    : String(booking.id || booking.bookingId || "");
 
   return {
     ...booking,
@@ -316,28 +262,18 @@ const normalizeBookingResponse = (
     id,
     bookingId: id,
 
-    turfId: String(
-      booking.turfId || ""
-    ),
+    turfId: String(booking.turfId || ""),
 
-    price: toNumber(
-      booking.price
-    ),
+    price: toNumber(booking.price),
   };
 };
 
-const normalizeWishlistResponse = (
-  item
-) => {
+const normalizeWishlistResponse = (item) => {
   if (!item) return null;
 
   const id = item._id
     ? String(item._id)
-    : String(
-        item.id ||
-          item.wishlistId ||
-          ""
-      );
+    : String(item.id || item.wishlistId || "");
 
   return {
     ...item,
@@ -346,67 +282,63 @@ const normalizeWishlistResponse = (
     id,
     wishlistId: id,
 
-    turfId: String(
-      item.turfId || ""
-    ),
+    userEmail: normalizeEmail(item.userEmail),
 
-    turfPrice: toNumber(
-      item.turfPrice
-    ),
+    turfId: String(item.turfId || ""),
+
+    turfSlug: String(item.turfSlug || ""),
+
+    turfName: String(item.turfName || ""),
+
+    turfLocation: String(item.turfLocation || ""),
+
+    turfImage: String(item.turfImage || ""),
+
+    turfPrice: toNumber(item.turfPrice),
   };
 };
 
 // =========================
-// CLOUDINARY
+// CLOUDINARY UPLOAD
 // =========================
 
-const uploadToCloudinary = (
-  buffer,
-  options = {}
-) => {
-  return new Promise(
-    (resolve, reject) => {
-      const stream =
-        cloudinary.uploader.upload_stream(
-          {
-            folder: "khelaro",
-            resource_type: "image",
-            ...options,
-          },
-          (error, result) => {
-            if (error) {
-              return reject(error);
-            }
+const uploadToCloudinary = (buffer, options = {}) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "khelaro",
+        resource_type: "image",
+        ...options,
+      },
+      (error, result) => {
+        if (error) {
+          return reject(error);
+        }
 
-            resolve(result);
-          }
-        );
+        resolve(result);
+      },
+    );
 
-      stream.end(buffer);
-    }
-  );
+    stream.end(buffer);
+  });
 };
 
 // =========================
 // DATABASE
 // =========================
 
-const dbUser =
-  process.env.DB_USER;
+const dbUser = process.env.DB_USER;
 
-const dbPass =
-  process.env.DB_PASS;
+const dbPass = process.env.DB_PASS;
 
 if (!dbUser || !dbPass) {
-  console.error(
-    "DB_USER or DB_PASS is missing from environment variables."
-  );
+  console.error("DB_USER or DB_PASS is missing from environment variables.");
 }
 
 const uri = `mongodb+srv://${encodeURIComponent(
-  dbUser || ""
+  dbUser || "",
 )}:${encodeURIComponent(
-  dbPass || ""
+  dbPass || "",
 )}@cluster0.yvhjyyn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -423,14 +355,11 @@ let bookingsCollection;
 let wishlistCollection;
 
 // =========================
-// TURF FIND HELPERS
+// TURF HELPERS
 // =========================
 
-const findTurfById = async (
-  turfId
-) => {
-  const normalizedId =
-    normalizeId(turfId);
+const findTurfById = async (turfId) => {
+  const normalizedId = normalizeId(turfId);
 
   if (!normalizedId) {
     return null;
@@ -438,57 +367,41 @@ const findTurfById = async (
 
   let turf = null;
 
-  if (
-    isValidObjectId(
-      normalizedId
-    )
-  ) {
-    turf =
-      await turfsCollection.findOne({
-        _id: new ObjectId(
-          normalizedId
-        ),
-      });
+  if (isValidObjectId(normalizedId)) {
+    turf = await turfsCollection.findOne({
+      _id: new ObjectId(normalizedId),
+    });
   }
 
   if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        id: normalizedId,
-      });
+    turf = await turfsCollection.findOne({
+      id: normalizedId,
+    });
   }
 
   if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        turfId: normalizedId,
-      });
+    turf = await turfsCollection.findOne({
+      turfId: normalizedId,
+    });
   }
 
   if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        turf_id: normalizedId,
-      });
+    turf = await turfsCollection.findOne({
+      turf_id: normalizedId,
+    });
   }
 
   if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        slug: normalizeSlug(
-          normalizedId
-        ),
-      });
+    turf = await turfsCollection.findOne({
+      slug: normalizeSlug(normalizedId),
+    });
   }
 
   return turf;
 };
 
-const findTurfBySlug = async (
-  slug
-) => {
-  const normalizedSlug =
-    normalizeSlug(slug);
+const findTurfBySlug = async (slug) => {
+  const normalizedSlug = normalizeSlug(slug);
 
   if (!normalizedSlug) {
     return null;
@@ -500,28 +413,49 @@ const findTurfBySlug = async (
 };
 
 // =========================
-// BASIC ROUTES
+// BUILD TURF SNAPSHOT
 // =========================
 
-app.get("/", (req, res) => {
-  res.send(
-    "Khelaro Server is Running"
-  );
-});
+const getTurfSnapshotFromRequest = (data) => {
+  return {
+    turfId: normalizeId(data.turfId || data.id || data.turf_id),
 
-app.get("/health", (req, res) => {
-  res.send({
-    success: true,
-    message:
-      "Khelaro API is healthy",
-  });
-});
+    turfSlug: normalizeSlug(data.turfSlug || data.slug),
+
+    turfName: String(data.turfName || data.name || "").trim(),
+
+    turfLocation: String(
+      data.turfLocation || data.location || data.area || "",
+    ).trim(),
+
+    turfImage: String(data.turfImage || data.image || "").trim(),
+
+    turfPrice: toNumber(data.turfPrice ?? data.price),
+
+    sport: String(data.sport || "").trim(),
+  };
+};
 
 // =========================
 // ROUTES
 // =========================
 
 function registerRoutes() {
+  // =========================
+  // ROOT
+  // =========================
+
+  app.get("/", (req, res) => {
+    res.send("Khelaro Server is Running");
+  });
+
+  app.get("/health", (req, res) => {
+    res.send({
+      success: true,
+      message: "Khelaro API is healthy",
+    });
+  });
+
   // =========================
   // USERS
   // =========================
@@ -530,73 +464,45 @@ function registerRoutes() {
     try {
       const data = req.body || {};
 
-      const email =
-        normalizeEmail(
-          data.email
-        );
+      const email = normalizeEmail(data.email);
 
       if (!email) {
         return res.status(400).send({
           success: false,
-          message:
-            "Email is required",
+          message: "Email is required",
         });
       }
 
-      const existingUser =
-        await usersCollection.findOne({
-          email,
-        });
+      const existingUser = await usersCollection.findOne({
+        email,
+      });
 
       if (existingUser) {
         return res.send({
           success: true,
-          message:
-            "User already exists",
-          user:
-            normalizeUserResponse(
-              existingUser
-            ),
+          message: "User already exists",
+          user: normalizeUserResponse(existingUser),
         });
       }
 
-      const allowedRoles = [
-        "user",
-        "owner",
-        "admin",
-      ];
+      const allowedRoles = ["user", "owner", "admin"];
 
-      const role =
-        allowedRoles.includes(
-          data.role
-        )
-          ? data.role
-          : "user";
+      const role = allowedRoles.includes(data.role) ? data.role : "user";
 
       const now = new Date();
 
       const newUser = {
-        uid: String(
-          data.uid || ""
-        ).trim(),
+        uid: String(data.uid || "").trim(),
 
-        name: String(
-          data.name || ""
-        ).trim(),
+        name: String(data.name || "").trim(),
 
         email,
 
-        phone: String(
-          data.phone || ""
-        ).trim(),
+        phone: String(data.phone || "").trim(),
 
-        location: String(
-          data.location || ""
-        ).trim(),
+        location: String(data.location || "").trim(),
 
-        photoURL: String(
-          data.photoURL || ""
-        ).trim(),
+        photoURL: String(data.photoURL || "").trim(),
 
         role,
 
@@ -604,2392 +510,1742 @@ function registerRoutes() {
         updatedAt: now,
       };
 
-      const result =
-        await usersCollection.insertOne(
-          newUser
-        );
+      const result = await usersCollection.insertOne(newUser);
 
-      const user =
-        await usersCollection.findOne({
-          _id: result.insertedId,
-        });
+      const user = await usersCollection.findOne({
+        _id: result.insertedId,
+      });
 
       res.status(201).send({
         success: true,
-        message:
-          "User created successfully",
-        user:
-          normalizeUserResponse(
-            user
-          ),
+        message: "User created successfully",
+        user: normalizeUserResponse(user),
       });
     } catch (error) {
-      console.error(
-        "Create user:",
-        error
-      );
+      console.error("Create user:", error);
 
-      if (
-        error?.code === 11000
-      ) {
+      if (error?.code === 11000) {
         return res.status(409).send({
           success: false,
-          message:
-            "User already exists",
+          message: "User already exists",
         });
       }
 
       res.status(500).send({
         success: false,
-        message:
-          "Failed to create user",
+        message: "Failed to create user",
       });
     }
   });
 
   app.get("/users", async (req, res) => {
     try {
-      const users =
-        await usersCollection
-          .find({})
-          .sort({
-            createdAt: -1,
-          })
-          .toArray();
+      const users = await usersCollection
+        .find({})
+        .sort({
+          createdAt: -1,
+        })
+        .toArray();
 
       res.send({
         success: true,
-        users: users.map(
-          normalizeUserResponse
-        ),
+        users: users.map(normalizeUserResponse),
       });
     } catch (error) {
-      console.error(
-        "Get users:",
-        error
-      );
+      console.error("Get users:", error);
 
       res.status(500).send({
         success: false,
-        message:
-          "Failed to get users",
+        message: "Failed to get users",
       });
     }
   });
 
-  // Stable email lookup route.
-  app.get(
-    "/users/email/:email",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+  app.get("/users/email/:email", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
 
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Email is required",
-          });
-        }
-
-        const user =
-          await usersCollection.findOne({
-            email,
-          });
-
-        if (!user) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "User not found",
-          });
-        }
-
-        res.send({
-          success: true,
-          user:
-            normalizeUserResponse(
-              user
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get user by email:",
-          error
-        );
-
-        res.status(500).send({
+      if (!email) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to get user",
+          message: "Email is required",
         });
       }
-    }
-  );
 
-  // Backward-compatible email route.
-  app.get(
-    "/users/:email",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+      const user = await usersCollection.findOne({
+        email,
+      });
 
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Email is required",
-          });
-        }
-
-        const user =
-          await usersCollection.findOne({
-            email,
-          });
-
-        if (!user) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "User not found",
-          });
-        }
-
-        res.send({
-          success: true,
-          user:
-            normalizeUserResponse(
-              user
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get user:",
-          error
-        );
-
-        res.status(500).send({
+      if (!user) {
+        return res.status(404).send({
           success: false,
-          message:
-            "Failed to get user",
+          message: "User not found",
         });
       }
+
+      res.send({
+        success: true,
+        user: normalizeUserResponse(user),
+      });
+    } catch (error) {
+      console.error("Get user by email:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get user",
+      });
     }
-  );
+  });
 
-  app.patch(
-    "/users/:email",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+  app.get("/users/:email", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
 
-        const {
-          name,
-          phone,
-          location,
-          photoURL,
-        } = req.body || {};
-
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Email is required",
-          });
-        }
-
-        if (
-          !String(
-            name || ""
-          ).trim()
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Name is required",
-          });
-        }
-
-        const updateData = {
-          name: String(
-            name
-          ).trim(),
-
-          phone: String(
-            phone || ""
-          ).trim(),
-
-          location: String(
-            location || ""
-          ).trim(),
-
-          updatedAt: new Date(),
-        };
-
-        if (
-          photoURL !== undefined
-        ) {
-          updateData.photoURL =
-            String(
-              photoURL
-            ).trim();
-        }
-
-        const result =
-          await usersCollection.updateOne(
-            {
-              email,
-            },
-            {
-              $set: updateData,
-            }
-          );
-
-        if (!result.matchedCount) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "User not found",
-          });
-        }
-
-        const user =
-          await usersCollection.findOne({
-            email,
-          });
-
-        res.send({
-          success: true,
-          message:
-            "Profile updated successfully",
-          user:
-            normalizeUserResponse(
-              user
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Update profile:",
-          error
-        );
-
-        res.status(500).send({
+      if (!email) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to update profile",
+          message: "Email is required",
         });
       }
+
+      const user = await usersCollection.findOne({
+        email,
+      });
+
+      if (!user) {
+        return res.status(404).send({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      res.send({
+        success: true,
+        user: normalizeUserResponse(user),
+      });
+    } catch (error) {
+      console.error("Get user:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get user",
+      });
     }
-  );
+  });
 
-  app.post(
-    "/users/:email/photo",
-    upload.single("photo"),
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+  app.patch("/users/:email", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
 
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "User email is required",
-          });
-        }
+      if (!email) {
+        return res.status(400).send({
+          success: false,
+          message: "Email is required",
+        });
+      }
 
-        if (!req.file) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Profile photo is required",
-          });
-        }
+      const { name, phone, location, photoURL } = req.body || {};
 
-        const user =
-          await usersCollection.findOne({
-            email,
-          });
+      if (!String(name || "").trim()) {
+        return res.status(400).send({
+          success: false,
+          message: "Name is required",
+        });
+      }
 
-        if (!user) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "User not found",
-          });
-        }
+      const updateData = {
+        name: String(name).trim(),
 
-        const publicId =
-          `user-${email.replace(
-            /[^a-zA-Z0-9]/g,
-            "_"
-          )}`;
+        phone: String(phone || "").trim(),
 
-        const result =
-          await uploadToCloudinary(
-            req.file.buffer,
-            {
-              folder:
-                "khelaro/profile-photos",
-              public_id: publicId,
-              overwrite: true,
-            }
-          );
+        location: String(location || "").trim(),
 
-        await usersCollection.updateOne(
-          {
-            email,
+        updatedAt: new Date(),
+      };
+
+      if (photoURL !== undefined) {
+        updateData.photoURL = String(photoURL).trim();
+      }
+
+      const result = await usersCollection.updateOne(
+        {
+          email,
+        },
+        {
+          $set: updateData,
+        },
+      );
+
+      if (!result.matchedCount) {
+        return res.status(404).send({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      const user = await usersCollection.findOne({
+        email,
+      });
+
+      res.send({
+        success: true,
+        message: "Profile updated successfully",
+        user: normalizeUserResponse(user),
+      });
+    } catch (error) {
+      console.error("Update profile:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to update profile",
+      });
+    }
+  });
+
+  app.post("/users/:email/photo", upload.single("photo"), async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
+
+      if (!email) {
+        return res.status(400).send({
+          success: false,
+          message: "User email is required",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).send({
+          success: false,
+          message: "Profile photo is required",
+        });
+      }
+
+      const user = await usersCollection.findOne({
+        email,
+      });
+
+      if (!user) {
+        return res.status(404).send({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      const publicId = `user-${email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+      const result = await uploadToCloudinary(req.file.buffer, {
+        folder: "khelaro/profile-photos",
+        public_id: publicId,
+        overwrite: true,
+      });
+
+      await usersCollection.updateOne(
+        {
+          email,
+        },
+        {
+          $set: {
+            photoURL: result.secure_url,
+            updatedAt: new Date(),
           },
-          {
-            $set: {
-              photoURL:
-                result.secure_url,
-              updatedAt:
-                new Date(),
-            },
-          }
-        );
+        },
+      );
 
-        const updatedUser =
-          await usersCollection.findOne({
-            email,
-          });
+      const updatedUser = await usersCollection.findOne({
+        email,
+      });
 
-        res.send({
-          success: true,
-          message:
-            "Profile photo uploaded successfully",
-          photoURL:
-            result.secure_url,
-          user:
-            normalizeUserResponse(
-              updatedUser
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Upload profile photo:",
-          error
-        );
+      res.send({
+        success: true,
+        message: "Profile photo uploaded successfully",
+        photoURL: result.secure_url,
+        user: normalizeUserResponse(updatedUser),
+      });
+    } catch (error) {
+      console.error("Upload profile photo:", error);
 
-        res.status(500).send({
+      res.status(500).send({
+        success: false,
+        message: error?.message || "Failed to upload profile photo",
+      });
+    }
+  });
+
+  app.patch("/users/:email/role", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
+
+      const role = String(req.body?.role || "").trim();
+
+      const allowedRoles = ["user", "owner", "admin"];
+
+      if (!email) {
+        return res.status(400).send({
           success: false,
-          message:
-            error?.message ||
-            "Failed to upload profile photo",
+          message: "Email is required",
         });
       }
-    }
-  );
 
-  app.patch(
-    "/users/:email/role",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
-
-        const role = String(
-          req.body?.role || ""
-        ).trim();
-
-        const allowedRoles = [
-          "user",
-          "owner",
-          "admin",
-        ];
-
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Email is required",
-          });
-        }
-
-        if (
-          !allowedRoles.includes(
-            role
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid role",
-          });
-        }
-
-        const result =
-          await usersCollection.updateOne(
-            {
-              email,
-            },
-            {
-              $set: {
-                role,
-                updatedAt:
-                  new Date(),
-              },
-            }
-          );
-
-        if (!result.matchedCount) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "User not found",
-          });
-        }
-
-        const user =
-          await usersCollection.findOne({
-            email,
-          });
-
-        res.send({
-          success: true,
-          message:
-            `User role updated to ${role}`,
-          user:
-            normalizeUserResponse(
-              user
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Update role:",
-          error
-        );
-
-        res.status(500).send({
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to update user role",
+          message: "Invalid role",
         });
       }
+
+      const result = await usersCollection.updateOne(
+        {
+          email,
+        },
+        {
+          $set: {
+            role,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      if (!result.matchedCount) {
+        return res.status(404).send({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      const user = await usersCollection.findOne({
+        email,
+      });
+
+      res.send({
+        success: true,
+        message: "User role updated successfully",
+        user: normalizeUserResponse(user),
+      });
+    } catch (error) {
+      console.error("Update role:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to update user role",
+      });
     }
-  );
+  });
 
   // =========================
   // TURFS
   // =========================
 
-  app.get(
-    "/turfs",
-    async (req, res) => {
-      try {
-        const {
-          search = "",
-          area = "",
-          sport = "",
-          minPrice,
-          maxPrice,
-          sort = "newest",
-        } = req.query;
+  app.get("/turfs", async (req, res) => {
+    try {
+      const {
+        search = "",
+        area = "",
+        sport = "",
+        minPrice,
+        maxPrice,
+        sort = "newest",
+      } = req.query;
 
-        const query = {
-          $and: [
-            {
-              $or: [
-                {
-                  status:
-                    "approved",
-                },
-                {
-                  status: {
-                    $exists: false,
-                  },
-                },
-                {
-                  status: "",
-                },
-              ],
-            },
-          ],
-        };
-
-        const searchText =
-          String(
-            search
-          ).trim();
-
-        const areaText =
-          String(
-            area
-          ).trim();
-
-        const sportText =
-          String(
-            sport
-          ).trim();
-
-        if (searchText) {
-          query.$and.push({
+      const query = {
+        $and: [
+          {
             $or: [
               {
-                name: {
-                  $regex:
-                    searchText,
-                  $options:
-                    "i",
+                status: "approved",
+              },
+              {
+                status: {
+                  $exists: false,
                 },
               },
               {
-                location: {
-                  $regex:
-                    searchText,
-                  $options:
-                    "i",
-                },
-              },
-              {
-                area: {
-                  $regex:
-                    searchText,
-                  $options:
-                    "i",
-                },
-              },
-              {
-                sport: {
-                  $regex:
-                    searchText,
-                  $options:
-                    "i",
-                },
+                status: "",
               },
             ],
-          });
-        }
+          },
+        ],
+      };
 
-        if (areaText) {
-          query.$and.push({
-            area: {
-              $regex: areaText,
-              $options: "i",
-            },
-          });
-        }
+      const searchText = String(search).trim();
 
-        if (sportText) {
-          query.$and.push({
-            sport: {
-              $regex: sportText,
-              $options: "i",
-            },
-          });
-        }
+      const areaText = String(area).trim();
 
-        const min =
-          Number(minPrice);
+      const sportText = String(sport).trim();
 
-        const max =
-          Number(maxPrice);
-
-        if (
-          Number.isFinite(min) ||
-          Number.isFinite(max)
-        ) {
-          const priceQuery = {};
-
-          if (
-            Number.isFinite(min)
-          ) {
-            priceQuery.$gte = min;
-          }
-
-          if (
-            Number.isFinite(max)
-          ) {
-            priceQuery.$lte = max;
-          }
-
-          query.$and.push({
-            price: priceQuery,
-          });
-        }
-
-        let sortOption = {
-          createdAt: -1,
-        };
-
-        if (
-          sort === "price-low"
-        ) {
-          sortOption = {
-            price: 1,
-          };
-        }
-
-        if (
-          sort === "price-high"
-        ) {
-          sortOption = {
-            price: -1,
-          };
-        }
-
-        if (sort === "rating") {
-          sortOption = {
-            rating: -1,
-            reviews: -1,
-          };
-        }
-
-        const turfs =
-          await turfsCollection
-            .find(query)
-            .sort(sortOption)
-            .toArray();
-
-        res.send({
-          success: true,
-          count: turfs.length,
-          turfs: turfs.map(
-            normalizeTurfResponse
-          ),
-        });
-      } catch (error) {
-        console.error(
-          "Get turfs:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to get turfs",
-        });
-      }
-    }
-  );
-
-  // Keep before /turfs/:id.
-  app.get(
-    "/turfs/slug/:slug",
-    async (req, res) => {
-      try {
-        const slug =
-          normalizeSlug(
-            req.params.slug
-          );
-
-        if (!slug) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf slug is required",
-          });
-        }
-
-        const turf =
-          await findTurfBySlug(
-            slug
-          );
-
-        if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
-
-        res.send({
-          success: true,
-          turf:
-            normalizeTurfResponse(
-              turf
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get turf by slug:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to get turf",
-        });
-      }
-    }
-  );
-
-  app.get(
-    "/turfs/:id",
-    async (req, res) => {
-      try {
-        const turfId =
-          normalizeId(
-            req.params.id
-          );
-
-        if (!turfId) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf ID is required",
-          });
-        }
-
-        const turf =
-          await findTurfById(
-            turfId
-          );
-
-        if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
-
-        res.send({
-          success: true,
-          turf:
-            normalizeTurfResponse(
-              turf
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get turf:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to get turf",
-        });
-      }
-    }
-  );
-
-  app.get(
-    "/turfs/id/:id",
-    async (req, res) => {
-      try {
-        const turfId =
-          normalizeId(
-            req.params.id
-          );
-
-        if (!turfId) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf ID is required",
-          });
-        }
-
-        const turf =
-          await findTurfById(
-            turfId
-          );
-
-        if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
-
-        res.send({
-          success: true,
-          turf:
-            normalizeTurfResponse(
-              turf
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get turf by ID:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to get turf",
-        });
-      }
-    }
-  );
-
-  app.post(
-    "/turfs",
-    async (req, res) => {
-      try {
-        const data =
-          req.body || {};
-
-        const ownerEmail =
-          normalizeEmail(
-            data.ownerEmail ||
-              data.email
-          );
-
-        const name = String(
-          data.name || ""
-        ).trim();
-
-        const location =
-          String(
-            data.location || ""
-          ).trim();
-
-        const area = String(
-          data.area || ""
-        ).trim();
-
-        const sport = String(
-          data.sport || ""
-        ).trim();
-
-        const image = String(
-          data.image || ""
-        ).trim();
-
-        const price =
-          toNumber(data.price);
-
-        if (!ownerEmail) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Owner email is required",
-          });
-        }
-
-        if (!name) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf name is required",
-          });
-        }
-
-        if (!location) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf location is required",
-          });
-        }
-
-        if (!sport) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Sport is required",
-          });
-        }
-
-        if (price < 0) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Price cannot be negative",
-          });
-        }
-
-        const owner =
-          await usersCollection.findOne({
-            email: ownerEmail,
-          });
-
-        if (!owner) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Owner account not found",
-          });
-        }
-
-        const slugBase =
-          String(
-            data.slug || name
-          )
-            .toLowerCase()
-            .trim()
-            .replace(
-              /[^a-z0-9]+/g,
-              "-"
-            )
-            .replace(
-              /^-+|-+$/g,
-              "");
-
-        let slug =
-          slugBase ||
-          `turf-${Date.now()}`;
-
-        const existingSlug =
-          await turfsCollection.findOne({
-            slug,
-          });
-
-        if (existingSlug) {
-          slug = `${slug}-${Date.now()}`;
-        }
-
-        const now =
-          new Date();
-
-        const newTurf = {
-          slug,
-          name,
-          location,
-          area,
-          sport,
-          price,
-          image,
-
-          rating:
-            data.rating !==
-            undefined
-              ? toNumber(
-                  data.rating
-                )
-              : null,
-
-          reviews:
-            data.reviews !==
-            undefined
-              ? toNumber(
-                  data.reviews
-                )
-              : 0,
-
-          size: String(
-            data.size || ""
-          ).trim(),
-
-          surface: String(
-            data.surface || ""
-          ).trim(),
-
-          openingTime:
-            String(
-              data.openingTime ||
-                "8:00 AM"
-            ).trim(),
-
-          closingTime:
-            String(
-              data.closingTime ||
-                "11:00 PM"
-            ).trim(),
-
-          description:
-            String(
-              data.description ||
-                ""
-            ).trim(),
-
-          amenities:
-            cleanArray(
-              data.amenities
-            ),
-
-          features:
-            cleanArray(
-              data.features
-            ),
-
-          available:
-            data.available !==
-            undefined
-              ? Boolean(
-                  data.available
-                )
-              : true,
-
-          ownerEmail,
-
-          status: "pending",
-
-          createdAt: now,
-          updatedAt: now,
-        };
-
-        const result =
-          await turfsCollection.insertOne(
-            newTurf
-          );
-
-        const turf =
-          await turfsCollection.findOne({
-            _id:
-              result.insertedId,
-          });
-
-        res.status(201).send({
-          success: true,
-          message:
-            "Turf submitted for approval",
-          turf:
-            normalizeTurfResponse(
-              turf
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Create turf:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to create turf",
-        });
-      }
-    }
-  );
-
-  app.get(
-    "/owner/turfs/:email",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
-
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Owner email is required",
-          });
-        }
-
-        const turfs =
-          await turfsCollection
-            .find({
-              ownerEmail: email,
-            })
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
-
-        res.send({
-          success: true,
-          count: turfs.length,
-          turfs: turfs.map(
-            normalizeTurfResponse
-          ),
-        });
-      } catch (error) {
-        console.error(
-          "Get owner turfs:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to get owner turfs",
-        });
-      }
-    }
-  );
-
-  app.get(
-    "/admin/turfs",
-    async (req, res) => {
-      try {
-        const turfs =
-          await turfsCollection
-            .find({})
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
-
-        res.send({
-          success: true,
-          count: turfs.length,
-          turfs: turfs.map(
-            normalizeTurfResponse
-          ),
-        });
-      } catch (error) {
-        console.error(
-          "Get admin turfs:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to get admin turfs",
-        });
-      }
-    }
-  );
-
-  app.get(
-    "/admin/turfs/pending",
-    async (req, res) => {
-      try {
-        const turfs =
-          await turfsCollection
-            .find({
-              status: "pending",
-            })
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
-
-        res.send({
-          success: true,
-          count: turfs.length,
-          turfs: turfs.map(
-            normalizeTurfResponse
-          ),
-        });
-      } catch (error) {
-        console.error(
-          "Get pending turfs:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to get pending turfs",
-        });
-      }
-    }
-  );
-
-  app.patch(
-    "/admin/turfs/:id/status",
-    async (req, res) => {
-      try {
-        const turfId =
-          normalizeId(
-            req.params.id
-          );
-
-        const status =
-          String(
-            req.body?.status || ""
-          ).trim();
-
-        if (
-          !isValidObjectId(
-            turfId
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid turf ID",
-          });
-        }
-
-        if (
-          ![
-            "pending",
-            "approved",
-            "rejected",
-          ].includes(status)
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid turf status",
-          });
-        }
-
-        const result =
-          await turfsCollection.updateOne(
+      if (searchText) {
+        query.$and.push({
+          $or: [
             {
-              _id: new ObjectId(
-                turfId
-              ),
-            },
-            {
-              $set: {
-                status,
-                updatedAt:
-                  new Date(),
+              name: {
+                $regex: searchText,
+                $options: "i",
               },
-            }
-          );
-
-        if (!result.matchedCount) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
-
-        const turf =
-          await turfsCollection.findOne({
-            _id: new ObjectId(
-              turfId
-            ),
-          });
-
-        res.send({
-          success: true,
-          message:
-            `Turf ${status} successfully`,
-          turf:
-            normalizeTurfResponse(
-              turf
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Update turf status:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to update turf status",
+            },
+            {
+              location: {
+                $regex: searchText,
+                $options: "i",
+              },
+            },
+            {
+              area: {
+                $regex: searchText,
+                $options: "i",
+              },
+            },
+            {
+              sport: {
+                $regex: searchText,
+                $options: "i",
+              },
+            },
+          ],
         });
       }
-    }
-  );
 
-  app.delete(
-    "/admin/turfs/:id",
-    async (req, res) => {
-      try {
-        const turfId =
-          normalizeId(
-            req.params.id
-          );
-
-        if (
-          !isValidObjectId(
-            turfId
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid turf ID",
-          });
-        }
-
-        const result =
-          await turfsCollection.deleteOne({
-            _id: new ObjectId(
-              turfId
-            ),
-          });
-
-        if (!result.deletedCount) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
-
-        res.send({
-          success: true,
-          message:
-            "Turf deleted successfully",
-        });
-      } catch (error) {
-        console.error(
-          "Delete turf:",
-          error
-        );
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Failed to delete turf",
+      if (areaText) {
+        query.$and.push({
+          area: {
+            $regex: areaText,
+            $options: "i",
+          },
         });
       }
+
+      if (sportText) {
+        query.$and.push({
+          sport: {
+            $regex: sportText,
+            $options: "i",
+          },
+        });
+      }
+
+      const min = Number(minPrice);
+
+      const max = Number(maxPrice);
+
+      if (Number.isFinite(min) || Number.isFinite(max)) {
+        const priceQuery = {};
+
+        if (Number.isFinite(min)) {
+          priceQuery.$gte = min;
+        }
+
+        if (Number.isFinite(max)) {
+          priceQuery.$lte = max;
+        }
+
+        query.$and.push({
+          price: priceQuery,
+        });
+      }
+
+      let sortOption = {
+        createdAt: -1,
+      };
+
+      if (sort === "price-low") {
+        sortOption = {
+          price: 1,
+        };
+      }
+
+      if (sort === "price-high") {
+        sortOption = {
+          price: -1,
+        };
+      }
+
+      if (sort === "rating") {
+        sortOption = {
+          rating: -1,
+          reviews: -1,
+        };
+      }
+
+      const turfs = await turfsCollection
+        .find(query)
+        .sort(sortOption)
+        .toArray();
+
+      res.send({
+        success: true,
+        count: turfs.length,
+        turfs: turfs.map(normalizeTurfResponse),
+      });
+    } catch (error) {
+      console.error("Get turfs:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get turfs",
+      });
     }
-  );
+  });
+
+  app.get("/turfs/slug/:slug", async (req, res) => {
+    try {
+      const slug = normalizeSlug(req.params.slug);
+
+      if (!slug) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf slug is required",
+        });
+      }
+
+      const turf = await findTurfBySlug(slug);
+
+      if (!turf) {
+        return res.status(404).send({
+          success: false,
+          message: "Turf not found",
+        });
+      }
+
+      res.send({
+        success: true,
+        turf: normalizeTurfResponse(turf),
+      });
+    } catch (error) {
+      console.error("Get turf by slug:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get turf",
+      });
+    }
+  });
+
+  app.get("/turfs/id/:id", async (req, res) => {
+    try {
+      const turfId = normalizeId(req.params.id);
+
+      if (!turfId) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf ID is required",
+        });
+      }
+
+      const turf = await findTurfById(turfId);
+
+      if (!turf) {
+        return res.status(404).send({
+          success: false,
+          message: "Turf not found",
+        });
+      }
+
+      res.send({
+        success: true,
+        turf: normalizeTurfResponse(turf),
+      });
+    } catch (error) {
+      console.error("Get turf by ID:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get turf",
+      });
+    }
+  });
+
+  app.get("/turfs/:id", async (req, res) => {
+    try {
+      const turfId = normalizeId(req.params.id);
+
+      if (!turfId) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf ID is required",
+        });
+      }
+
+      const turf = await findTurfById(turfId);
+
+      if (!turf) {
+        return res.status(404).send({
+          success: false,
+          message: "Turf not found",
+        });
+      }
+
+      res.send({
+        success: true,
+        turf: normalizeTurfResponse(turf),
+      });
+    } catch (error) {
+      console.error("Get turf:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get turf",
+      });
+    }
+  });
+
+  app.post("/turfs", async (req, res) => {
+    try {
+      const data = req.body || {};
+
+      const ownerEmail = normalizeEmail(data.ownerEmail || data.email);
+
+      const name = String(data.name || "").trim();
+
+      const location = String(data.location || "").trim();
+
+      const area = String(data.area || "").trim();
+
+      const sport = String(data.sport || "").trim();
+
+      const price = toNumber(data.price);
+
+      if (!ownerEmail) {
+        return res.status(400).send({
+          success: false,
+          message: "Owner email is required",
+        });
+      }
+
+      if (!name) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf name is required",
+        });
+      }
+
+      if (!location) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf location is required",
+        });
+      }
+
+      if (!sport) {
+        return res.status(400).send({
+          success: false,
+          message: "Sport is required",
+        });
+      }
+
+      if (price < 0) {
+        return res.status(400).send({
+          success: false,
+          message: "Price cannot be negative",
+        });
+      }
+
+      const owner = await usersCollection.findOne({
+        email: ownerEmail,
+      });
+
+      if (!owner) {
+        return res.status(404).send({
+          success: false,
+          message: "Owner account not found",
+        });
+      }
+
+      const slugBase = String(data.slug || name)
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const slug = `${slugBase || "turf"}-${Date.now()}`;
+
+      const customId =
+        String(data.id || data.turfId || "").trim() || `turf-${Date.now()}`;
+
+      const now = new Date();
+
+      const newTurf = {
+        id: customId,
+        turfId: customId,
+
+        slug,
+        name,
+        location,
+        area,
+        sport,
+        price,
+
+        image: String(data.image || "").trim(),
+
+        rating: data.rating !== undefined ? toNumber(data.rating) : null,
+
+        reviews: data.reviews !== undefined ? toNumber(data.reviews) : 0,
+
+        size: String(data.size || "").trim(),
+
+        surface: String(data.surface || "").trim(),
+
+        openingTime: String(data.openingTime || "8:00 AM").trim(),
+
+        closingTime: String(data.closingTime || "11:00 PM").trim(),
+
+        description: String(data.description || "").trim(),
+
+        amenities: cleanArray(data.amenities),
+
+        features: cleanArray(data.features),
+
+        available: toBoolean(data.available, true),
+
+        ownerEmail,
+
+        status: "pending",
+
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const result = await turfsCollection.insertOne(newTurf);
+
+      const turf = await turfsCollection.findOne({
+        _id: result.insertedId,
+      });
+
+      res.status(201).send({
+        success: true,
+        message: "Turf submitted for approval",
+        turf: normalizeTurfResponse(turf),
+      });
+    } catch (error) {
+      console.error("Create turf:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to create turf",
+      });
+    }
+  });
+
+  app.get("/owner/turfs/:email", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
+
+      if (!email) {
+        return res.status(400).send({
+          success: false,
+          message: "Owner email is required",
+        });
+      }
+
+      const turfs = await turfsCollection
+        .find({
+          ownerEmail: email,
+        })
+        .sort({
+          createdAt: -1,
+        })
+        .toArray();
+
+      res.send({
+        success: true,
+        count: turfs.length,
+        turfs: turfs.map(normalizeTurfResponse),
+      });
+    } catch (error) {
+      console.error("Get owner turfs:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get owner turfs",
+      });
+    }
+  });
+
+  app.get("/admin/turfs", async (req, res) => {
+    try {
+      const turfs = await turfsCollection
+        .find({})
+        .sort({
+          createdAt: -1,
+        })
+        .toArray();
+
+      res.send({
+        success: true,
+        count: turfs.length,
+        turfs: turfs.map(normalizeTurfResponse),
+      });
+    } catch (error) {
+      console.error("Get admin turfs:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get admin turfs",
+      });
+    }
+  });
+
+  app.get("/admin/turfs/pending", async (req, res) => {
+    try {
+      const turfs = await turfsCollection
+        .find({
+          status: "pending",
+        })
+        .sort({
+          createdAt: -1,
+        })
+        .toArray();
+
+      res.send({
+        success: true,
+        count: turfs.length,
+        turfs: turfs.map(normalizeTurfResponse),
+      });
+    } catch (error) {
+      console.error("Get pending turfs:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get pending turfs",
+      });
+    }
+  });
+
+  app.patch("/admin/turfs/:id/status", async (req, res) => {
+    try {
+      const turfId = normalizeId(req.params.id);
+
+      const status = String(req.body?.status || "").trim();
+
+      if (!isValidObjectId(turfId)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid turf ID",
+        });
+      }
+
+      if (!["pending", "approved", "rejected"].includes(status)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid turf status",
+        });
+      }
+
+      const result = await turfsCollection.updateOne(
+        {
+          _id: new ObjectId(turfId),
+        },
+        {
+          $set: {
+            status,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      if (!result.matchedCount) {
+        return res.status(404).send({
+          success: false,
+          message: "Turf not found",
+        });
+      }
+
+      const turf = await turfsCollection.findOne({
+        _id: new ObjectId(turfId),
+      });
+
+      res.send({
+        success: true,
+        message: `Turf ${status} successfully`,
+        turf: normalizeTurfResponse(turf),
+      });
+    } catch (error) {
+      console.error("Update turf status:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to update turf status",
+      });
+    }
+  });
+
+  app.delete("/admin/turfs/:id", async (req, res) => {
+    try {
+      const turfId = normalizeId(req.params.id);
+
+      if (!isValidObjectId(turfId)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid turf ID",
+        });
+      }
+
+      const result = await turfsCollection.deleteOne({
+        _id: new ObjectId(turfId),
+      });
+
+      if (!result.deletedCount) {
+        return res.status(404).send({
+          success: false,
+          message: "Turf not found",
+        });
+      }
+
+      res.send({
+        success: true,
+        message: "Turf deleted successfully",
+      });
+    } catch (error) {
+      console.error("Delete turf:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to delete turf",
+      });
+    }
+  });
 
   // =========================
   // BOOKINGS
   // =========================
 
-  app.get(
-    "/bookings/availability",
-    async (req, res) => {
-      try {
-        const turfId =
-          normalizeId(
-            req.query.turfId
-          );
+  app.get("/bookings/availability", async (req, res) => {
+    try {
+      const turfId = normalizeId(req.query.turfId);
 
-        const date =
-          String(
-            req.query.date || ""
-          ).trim();
+      const date = String(req.query.date || "").trim();
 
-        if (!turfId) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf ID is required",
-          });
-        }
-
-        if (!validateDate(date)) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Valid date is required",
-          });
-        }
-
-        const turf =
-          await findTurfById(
-            turfId
-          );
-
-        if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
-
-        const actualTurfId =
-          getTurfStableId(turf);
-
-        const bookings =
-          await bookingsCollection
-            .find({
-              turfId:
-                actualTurfId,
-
-              date,
-
-              status: {
-                $in: [
-                  "pending",
-                  "confirmed",
-                ],
-              },
-            })
-            .sort({
-              startTime: 1,
-            })
-            .toArray();
-
-        res.send({
-          success: true,
-          date,
-
-          turfId:
-            actualTurfId,
-
-          bookings:
-            bookings.map(
-              normalizeBookingResponse
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get booking availability:",
-          error
-        );
-
-        res.status(500).send({
+      if (!turfId) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to get booking availability",
+          message: "Turf ID is required",
         });
       }
+
+      if (!validateDate(date)) {
+        return res.status(400).send({
+          success: false,
+          message: "Valid date is required",
+        });
+      }
+
+      const bookings = await bookingsCollection
+        .find({
+          turfId,
+          date,
+          status: {
+            $in: ["pending", "confirmed"],
+          },
+        })
+        .sort({
+          startTime: 1,
+        })
+        .toArray();
+
+      res.send({
+        success: true,
+        date,
+        turfId,
+        bookings: bookings.map(normalizeBookingResponse),
+      });
+    } catch (error) {
+      console.error("Get booking availability:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get booking availability",
+      });
     }
-  );
+  });
 
-  app.post(
-    "/bookings",
-    async (req, res) => {
-      try {
-        const data =
-          req.body || {};
+  app.post("/bookings", async (req, res) => {
+    try {
+      const data = req.body || {};
 
-        const turfId =
-          normalizeId(
-            data.turfId ||
-              data.id ||
-              data.turf_id
-          );
+      const userEmail = normalizeEmail(data.userEmail || data.email);
 
-        const userEmail =
-          normalizeEmail(
-            data.userEmail ||
-              data.email
-          );
+      const date = String(data.date || "").trim();
 
-        const date =
-          String(
-            data.date || ""
-          ).trim();
+      const startTime = String(data.startTime || "").trim();
 
-        const startTime =
-          String(
-            data.startTime || ""
-          ).trim();
+      const endTime = String(data.endTime || "").trim();
 
-        const endTime =
-          String(
-            data.endTime || ""
-          ).trim();
+      const snapshot = getTurfSnapshotFromRequest(data);
 
-        if (!turfId) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf ID is required",
-          });
-        }
+      if (!snapshot.turfId) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf ID is required",
+        });
+      }
 
-        if (!userEmail) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "User email is required",
-          });
-        }
+      if (!userEmail) {
+        return res.status(400).send({
+          success: false,
+          message: "User email is required",
+        });
+      }
 
-        if (!validateDate(date)) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Valid date is required",
-          });
-        }
+      if (!validateDate(date)) {
+        return res.status(400).send({
+          success: false,
+          message: "Valid date is required",
+        });
+      }
 
-        if (
-          !validateTime(
-            startTime
-          ) ||
-          !validateTime(
-            endTime
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Valid start and end time are required",
-          });
-        }
+      if (!validateTime(startTime) || !validateTime(endTime)) {
+        return res.status(400).send({
+          success: false,
+          message: "Valid start and end time are required",
+        });
+      }
 
-        if (
-          startTime >= endTime
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "End time must be after start time",
-          });
-        }
+      if (startTime >= endTime) {
+        return res.status(400).send({
+          success: false,
+          message: "End time must be after start time",
+        });
+      }
 
-        const user =
-          await usersCollection.findOne({
-            email: userEmail,
-          });
+      const user = await usersCollection.findOne({
+        email: userEmail,
+      });
 
-        if (!user) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "User not found",
-          });
-        }
+      if (!user) {
+        return res.status(404).send({
+          success: false,
+          message: "User not found",
+        });
+      }
 
-        const turf =
-          await findTurfById(
-            turfId
-          );
+      const existingTurf = await findTurfById(snapshot.turfId);
 
-        if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
+      let turfData = snapshot;
 
-        const turfStatus =
-          String(
-            turf.status || ""
-          ).trim();
+      if (existingTurf) {
+        turfData = {
+          turfId: getTurfStableId(existingTurf),
 
-        if (
-          turfStatus &&
-          turfStatus !==
-            "approved"
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "This turf is not available for booking",
-          });
-        }
+          turfSlug: String(existingTurf.slug || "").trim(),
 
-        if (
-          turf.available ===
-          false
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "This turf is currently unavailable",
-          });
-        }
+          turfName: String(existingTurf.name || snapshot.turfName || "").trim(),
 
-        const actualTurfId =
-          getTurfStableId(turf);
-
-        const conflictingBooking =
-          await bookingsCollection.findOne(
-            {
-              turfId:
-                actualTurfId,
-
-              date,
-
-              status: {
-                $in: [
-                  "pending",
-                  "confirmed",
-                ],
-              },
-
-              startTime: {
-                $lt: endTime,
-              },
-
-              endTime: {
-                $gt: startTime,
-              },
-            }
-          );
-
-        if (conflictingBooking) {
-          return res.status(409).send({
-            success: false,
-            message:
-              "This turf is already booked for the selected time",
-          });
-        }
-
-        const now =
-          new Date();
-
-        const booking = {
-          turfId:
-            actualTurfId,
-
-          turfSlug: String(
-            turf.slug || ""
+          turfLocation: String(
+            existingTurf.location ||
+              existingTurf.area ||
+              snapshot.turfLocation ||
+              "",
           ).trim(),
-
-          turfName: String(
-            turf.name || ""
-          ).trim(),
-
-          turfLocation:
-            String(
-              turf.location ||
-                turf.area ||
-                ""
-            ).trim(),
 
           turfImage: String(
-            turf.image || ""
+            existingTurf.image || snapshot.turfImage || "",
           ).trim(),
 
-          price: toNumber(
-            turf.price
-          ),
-
-          ownerEmail:
-            normalizeEmail(
-              turf.ownerEmail
-            ),
-
-          userEmail,
-
-          userName: String(
-            data.userName ||
-              user.name ||
-              ""
-          ).trim(),
-
-          userPhone: String(
-            data.userPhone ||
-              user.phone ||
-              ""
-          ).trim(),
-
-          date,
-          startTime,
-          endTime,
-
-          paymentStatus:
-            "unpaid",
-
-          paymentMethod:
-            String(
-              data.paymentMethod ||
-                ""
-            ).trim(),
-
-          status: "pending",
-
-          notes: String(
-            data.notes || ""
-          ).trim(),
-
-          createdAt: now,
-          updatedAt: now,
+          turfPrice: toNumber(existingTurf.price, snapshot.turfPrice),
         };
+      }
 
-        const result =
-          await bookingsCollection.insertOne(
-            booking
-          );
-
-        const createdBooking =
-          await bookingsCollection.findOne({
-            _id:
-              result.insertedId,
-          });
-
-        res.status(201).send({
-          success: true,
-          message:
-            "Booking created successfully",
-
-          booking:
-            normalizeBookingResponse(
-              createdBooking
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Create booking:",
-          error
-        );
-
-        res.status(500).send({
+      if (!turfData.turfName) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to create booking",
+          message: "Turf name is required",
         });
       }
-    }
-  );
 
-  app.get(
-    "/bookings/user/:email",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+      const conflictingBooking = await bookingsCollection.findOne({
+        turfId: turfData.turfId,
 
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "User email is required",
-          });
-        }
+        date,
 
-        const bookings =
-          await bookingsCollection
-            .find({
-              userEmail: email,
-            })
-            .sort({
-              date: -1,
-              startTime: -1,
-            })
-            .toArray();
+        status: {
+          $in: ["pending", "confirmed"],
+        },
 
-        res.send({
-          success: true,
-          count: bookings.length,
+        startTime: {
+          $lt: endTime,
+        },
 
-          bookings:
-            bookings.map(
-              normalizeBookingResponse
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get user bookings:",
-          error
-        );
+        endTime: {
+          $gt: startTime,
+        },
+      });
 
-        res.status(500).send({
+      if (conflictingBooking) {
+        return res.status(409).send({
           success: false,
-          message:
-            "Failed to get user bookings",
+          message: "This turf is already booked for the selected time",
         });
       }
+
+      const now = new Date();
+
+      const booking = {
+        turfId: turfData.turfId,
+
+        turfSlug: turfData.turfSlug,
+
+        turfName: turfData.turfName,
+
+        turfLocation: turfData.turfLocation,
+
+        turfImage: turfData.turfImage,
+
+        price: turfData.turfPrice,
+
+        ownerEmail: normalizeEmail(data.ownerEmail),
+
+        userEmail,
+
+        userName: String(data.userName || user.name || "").trim(),
+
+        userPhone: String(data.userPhone || user.phone || "").trim(),
+
+        date,
+        startTime,
+        endTime,
+
+        paymentStatus: "unpaid",
+
+        paymentMethod: String(data.paymentMethod || "").trim(),
+
+        status: "pending",
+
+        notes: String(data.notes || "").trim(),
+
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const result = await bookingsCollection.insertOne(booking);
+
+      const createdBooking = await bookingsCollection.findOne({
+        _id: result.insertedId,
+      });
+
+      res.status(201).send({
+        success: true,
+        message: "Booking created successfully",
+        booking: normalizeBookingResponse(createdBooking),
+      });
+    } catch (error) {
+      console.error("Create booking:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to create booking",
+      });
     }
-  );
+  });
 
-  app.get(
-    "/bookings/:id",
-    async (req, res) => {
-      try {
-        const bookingId =
-          normalizeId(
-            req.params.id
-          );
+  app.get("/bookings/user/:email", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
 
-        if (
-          !isValidObjectId(
-            bookingId
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid booking ID",
-          });
-        }
-
-        const booking =
-          await bookingsCollection.findOne({
-            _id: new ObjectId(
-              bookingId
-            ),
-          });
-
-        if (!booking) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Booking not found",
-          });
-        }
-
-        res.send({
-          success: true,
-          booking:
-            normalizeBookingResponse(
-              booking
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get booking:",
-          error
-        );
-
-        res.status(500).send({
+      if (!email) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to get booking",
+          message: "User email is required",
         });
       }
+
+      const bookings = await bookingsCollection
+        .find({
+          userEmail: email,
+        })
+        .sort({
+          date: -1,
+          startTime: -1,
+        })
+        .toArray();
+
+      res.send({
+        success: true,
+        count: bookings.length,
+        bookings: bookings.map(normalizeBookingResponse),
+      });
+    } catch (error) {
+      console.error("Get user bookings:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get user bookings",
+      });
     }
-  );
+  });
 
-  app.patch(
-    "/bookings/:id/cancel",
-    async (req, res) => {
-      try {
-        const bookingId =
-          normalizeId(
-            req.params.id
-          );
+  app.get("/bookings/:id", async (req, res) => {
+    try {
+      const bookingId = normalizeId(req.params.id);
 
-        if (
-          !isValidObjectId(
-            bookingId
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid booking ID",
-          });
-        }
+      if (!isValidObjectId(bookingId)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid booking ID",
+        });
+      }
 
-        const booking =
-          await bookingsCollection.findOne({
-            _id: new ObjectId(
-              bookingId
-            ),
-          });
+      const booking = await bookingsCollection.findOne({
+        _id: new ObjectId(bookingId),
+      });
 
-        if (!booking) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Booking not found",
-          });
-        }
+      if (!booking) {
+        return res.status(404).send({
+          success: false,
+          message: "Booking not found",
+        });
+      }
 
-        if (
-          [
-            "cancelled",
-            "completed",
-          ].includes(
-            booking.status
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "This booking cannot be cancelled",
-          });
-        }
+      res.send({
+        success: true,
+        booking: normalizeBookingResponse(booking),
+      });
+    } catch (error) {
+      console.error("Get booking:", error);
 
-        await bookingsCollection.updateOne(
-          {
-            _id: new ObjectId(
-              bookingId
-            ),
+      res.status(500).send({
+        success: false,
+        message: "Failed to get booking",
+      });
+    }
+  });
+
+  app.patch("/bookings/:id/cancel", async (req, res) => {
+    try {
+      const bookingId = normalizeId(req.params.id);
+
+      if (!isValidObjectId(bookingId)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid booking ID",
+        });
+      }
+
+      const booking = await bookingsCollection.findOne({
+        _id: new ObjectId(bookingId),
+      });
+
+      if (!booking) {
+        return res.status(404).send({
+          success: false,
+          message: "Booking not found",
+        });
+      }
+
+      if (["cancelled", "completed"].includes(booking.status)) {
+        return res.status(400).send({
+          success: false,
+          message: "This booking cannot be cancelled",
+        });
+      }
+
+      await bookingsCollection.updateOne(
+        {
+          _id: new ObjectId(bookingId),
+        },
+        {
+          $set: {
+            status: "cancelled",
+            updatedAt: new Date(),
           },
-          {
-            $set: {
-              status:
-                "cancelled",
-              updatedAt:
-                new Date(),
-            },
-          }
-        );
+        },
+      );
 
-        const updatedBooking =
-          await bookingsCollection.findOne({
-            _id: new ObjectId(
-              bookingId
-            ),
-          });
+      const updatedBooking = await bookingsCollection.findOne({
+        _id: new ObjectId(bookingId),
+      });
 
-        res.send({
-          success: true,
-          message:
-            "Booking cancelled successfully",
+      res.send({
+        success: true,
+        message: "Booking cancelled successfully",
+        booking: normalizeBookingResponse(updatedBooking),
+      });
+    } catch (error) {
+      console.error("Cancel booking:", error);
 
-          booking:
-            normalizeBookingResponse(
-              updatedBooking
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Cancel booking:",
-          error
-        );
+      res.status(500).send({
+        success: false,
+        message: "Failed to cancel booking",
+      });
+    }
+  });
 
-        res.status(500).send({
+  app.get("/owner/bookings/:email", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
+
+      if (!email) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to cancel booking",
+          message: "Owner email is required",
         });
       }
+
+      const bookings = await bookingsCollection
+        .find({
+          ownerEmail: email,
+        })
+        .sort({
+          date: -1,
+          startTime: -1,
+        })
+        .toArray();
+
+      res.send({
+        success: true,
+        count: bookings.length,
+        bookings: bookings.map(normalizeBookingResponse),
+      });
+    } catch (error) {
+      console.error("Get owner bookings:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get owner bookings",
+      });
     }
-  );
+  });
 
-  app.get(
-    "/owner/bookings/:email",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+  app.patch("/owner/bookings/:id/status", async (req, res) => {
+    try {
+      const bookingId = normalizeId(req.params.id);
 
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Owner email is required",
-          });
-        }
+      const status = String(req.body?.status || "").trim();
 
-        const bookings =
-          await bookingsCollection
-            .find({
-              ownerEmail: email,
-            })
-            .sort({
-              date: -1,
-              startTime: -1,
-            })
-            .toArray();
+      const allowedStatuses = [
+        "pending",
+        "confirmed",
+        "cancelled",
+        "completed",
+      ];
 
-        res.send({
-          success: true,
-          count: bookings.length,
-
-          bookings:
-            bookings.map(
-              normalizeBookingResponse
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get owner bookings:",
-          error
-        );
-
-        res.status(500).send({
+      if (!isValidObjectId(bookingId)) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to get owner bookings",
+          message: "Invalid booking ID",
         });
       }
-    }
-  );
 
-  app.patch(
-    "/owner/bookings/:id/status",
-    async (req, res) => {
-      try {
-        const bookingId =
-          normalizeId(
-            req.params.id
-          );
-
-        const status =
-          String(
-            req.body?.status || ""
-          ).trim();
-
-        const allowedStatuses = [
-          "pending",
-          "confirmed",
-          "cancelled",
-          "completed",
-        ];
-
-        if (
-          !isValidObjectId(
-            bookingId
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid booking ID",
-          });
-        }
-
-        if (
-          !allowedStatuses.includes(
-            status
-          )
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Invalid booking status",
-          });
-        }
-
-        const result =
-          await bookingsCollection.updateOne(
-            {
-              _id: new ObjectId(
-                bookingId
-              ),
-            },
-            {
-              $set: {
-                status,
-                updatedAt:
-                  new Date(),
-              },
-            }
-          );
-
-        if (!result.matchedCount) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Booking not found",
-          });
-        }
-
-        const booking =
-          await bookingsCollection.findOne({
-            _id: new ObjectId(
-              bookingId
-            ),
-          });
-
-        res.send({
-          success: true,
-          message:
-            "Booking status updated successfully",
-
-          booking:
-            normalizeBookingResponse(
-              booking
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Update booking status:",
-          error
-        );
-
-        res.status(500).send({
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to update booking status",
+          message: "Invalid booking status",
         });
       }
+
+      const result = await bookingsCollection.updateOne(
+        {
+          _id: new ObjectId(bookingId),
+        },
+        {
+          $set: {
+            status,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      if (!result.matchedCount) {
+        return res.status(404).send({
+          success: false,
+          message: "Booking not found",
+        });
+      }
+
+      const booking = await bookingsCollection.findOne({
+        _id: new ObjectId(bookingId),
+      });
+
+      res.send({
+        success: true,
+        message: "Booking status updated successfully",
+        booking: normalizeBookingResponse(booking),
+      });
+    } catch (error) {
+      console.error("Update booking status:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to update booking status",
+      });
     }
-  );
+  });
 
   // =========================
   // WISHLIST
   // =========================
 
-  app.get(
-    "/wishlist/:email/:turfId",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+  // Check one turf
+  app.get("/wishlist/:email/:turfId", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
 
-        const turfId =
-          normalizeId(
-            req.params.turfId
-          );
+      const turfId = normalizeId(req.params.turfId);
 
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "User email is required",
-          });
-        }
-
-        if (!turfId) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf ID is required",
-          });
-        }
-
-        const turf =
-          await findTurfById(
-            turfId
-          );
-
-        if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
-
-        const actualTurfId =
-          getTurfStableId(turf);
-
-        const wishlist =
-          await wishlistCollection.findOne({
-            userEmail: email,
-            turfId:
-              actualTurfId,
-          });
-
-        res.send({
-          success: true,
-          wishlisted:
-            Boolean(
-              wishlist
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Check wishlist:",
-          error
-        );
-
-        res.status(500).send({
+      if (!email) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to check wishlist",
+          message: "User email is required",
         });
       }
+
+      if (!turfId) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf ID is required",
+        });
+      }
+
+      const wishlist = await wishlistCollection.findOne({
+        userEmail: email,
+        turfId,
+      });
+
+      res.send({
+        success: true,
+        wishlisted: Boolean(wishlist),
+      });
+    } catch (error) {
+      console.error("Check wishlist:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to check wishlist",
+      });
     }
-  );
+  });
 
-  app.post(
-    "/wishlist/toggle",
-    async (req, res) => {
-      try {
-        const data =
-          req.body || {};
+  // Add/remove using toggle
+  app.post("/wishlist/toggle", async (req, res) => {
+    try {
+      const data = req.body || {};
 
-        const userEmail =
-          normalizeEmail(
-            data.userEmail ||
-              data.email
-          );
+      const userEmail = normalizeEmail(data.userEmail || data.email);
 
-        const turfId =
-          normalizeId(
-            data.turfId ||
-              data.id ||
-              data.turf_id
-          );
+      const turfId = normalizeId(data.turfId || data.id || data.turf_id);
 
-        if (!userEmail) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "User email is required",
-          });
-        }
+      if (!userEmail) {
+        return res.status(400).send({
+          success: false,
+          message: "User email is required",
+        });
+      }
 
-        if (!turfId) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "Turf ID is required",
-          });
-        }
+      if (!turfId) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf ID is required",
+        });
+      }
 
-        const user =
-          await usersCollection.findOne({
-            email:
-              userEmail,
-          });
+      const user = await usersCollection.findOne({
+        email: userEmail,
+      });
 
-        if (!user) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "User not found",
-          });
-        }
+      if (!user) {
+        return res.status(404).send({
+          success: false,
+          message: "User not found",
+        });
+      }
 
-        const turf =
-          await findTurfById(
-            turfId
-          );
+      const existing = await wishlistCollection.findOne({
+        userEmail,
+        turfId,
+      });
 
-        if (!turf) {
-          return res.status(404).send({
-            success: false,
-            message:
-              "Turf not found",
-          });
-        }
+      // Remove
+      if (existing) {
+        await wishlistCollection.deleteOne({
+          _id: existing._id,
+        });
 
-        const actualTurfId =
-          getTurfStableId(turf);
-
-        const existing =
-          await wishlistCollection.findOne({
-            userEmail,
-            turfId:
-              actualTurfId,
-          });
-
-        if (existing) {
-          await wishlistCollection.deleteOne(
-            {
-              _id:
-                existing._id,
-            }
-          );
-
-          const count =
-            await wishlistCollection.countDocuments(
-              {
-                userEmail,
-              }
-            );
-
-          return res.send({
-            success: true,
-            wishlisted: false,
-            count,
-
-            message:
-              "Turf removed from wishlist",
-          });
-        }
-
-        const now =
-          new Date();
-
-        await wishlistCollection.insertOne({
+        const count = await wishlistCollection.countDocuments({
           userEmail,
-
-          turfId:
-            actualTurfId,
-
-          turfSlug:
-            String(
-              turf.slug || ""
-            ).trim(),
-
-          turfName:
-            String(
-              turf.name || ""
-            ).trim(),
-
-          turfLocation:
-            String(
-              turf.location ||
-                turf.area ||
-                ""
-            ).trim(),
-
-          turfImage:
-            String(
-              turf.image || ""
-            ).trim(),
-
-          turfPrice:
-            toNumber(
-              turf.price
-            ),
-
-          createdAt: now,
-          updatedAt: now,
         });
 
-        const count =
-          await wishlistCollection.countDocuments(
-            {
-              userEmail,
-            }
-          );
-
-        res.status(201).send({
+        return res.send({
           success: true,
-          wishlisted: true,
+          action: "removed",
+          wishlisted: false,
           count,
-
-          message:
-            "Turf added to wishlist",
-        });
-      } catch (error) {
-        console.error(
-          "Wishlist toggle:",
-          error
-        );
-
-        if (
-          error?.code === 11000
-        ) {
-          return res.status(409).send({
-            success: false,
-            message:
-              "Turf is already in wishlist",
-          });
-        }
-
-        res.status(500).send({
-          success: false,
-          message:
-            "Wishlist operation failed",
+          message: "Turf removed from wishlist",
         });
       }
-    }
-  );
 
-  app.get(
-    "/wishlist/:email",
-    async (req, res) => {
-      try {
-        const email =
-          normalizeEmail(
-            req.params.email
-          );
+      // Try MongoDB turf first.
+      const mongoTurf = await findTurfById(turfId);
 
-        if (!email) {
-          return res.status(400).send({
-            success: false,
-            message:
-              "User email is required",
-          });
-        }
+      let turfData = {
+        turfId,
+        turfSlug: normalizeSlug(data.turfSlug || data.slug),
+        turfName: String(data.turfName || data.name || "").trim(),
+        turfLocation: String(
+          data.turfLocation || data.location || data.area || "",
+        ).trim(),
+        turfImage: String(data.turfImage || data.image || "").trim(),
+        turfPrice: toNumber(data.turfPrice ?? data.price),
+        sport: String(data.sport || "").trim(),
+      };
 
-        const wishlist =
-          await wishlistCollection
-            .find({
-              userEmail:
-                email,
-            })
-            .sort({
-              createdAt: -1,
-            })
-            .toArray();
+      // If Mongo turf exists, use backend data.
+      if (mongoTurf) {
+        turfData = {
+          turfId: getTurfStableId(mongoTurf),
 
-        res.send({
-          success: true,
-          count:
-            wishlist.length,
+          turfSlug: String(mongoTurf.slug || "").trim(),
 
-          wishlist:
-            wishlist.map(
-              normalizeWishlistResponse
-            ),
-        });
-      } catch (error) {
-        console.error(
-          "Get wishlist:",
-          error
-        );
+          turfName: String(mongoTurf.name || turfData.turfName || "").trim(),
 
-        res.status(500).send({
+          turfLocation: String(
+            mongoTurf.location || mongoTurf.area || turfData.turfLocation || "",
+          ).trim(),
+
+          turfImage: String(mongoTurf.image || turfData.turfImage || "").trim(),
+
+          turfPrice: toNumber(mongoTurf.price, turfData.turfPrice),
+
+          sport: String(mongoTurf.sport || turfData.sport || "").trim(),
+        };
+      }
+
+      // Local frontend turf must provide a name.
+      if (!turfData.turfName) {
+        return res.status(400).send({
           success: false,
-          message:
-            "Failed to get wishlist",
+          message: "Turf name is required",
         });
       }
-    }
-  );
 
-  console.log(
-    "Khelaro API routes registered"
-  );
+      const now = new Date();
+
+      await wishlistCollection.insertOne({
+        userEmail,
+
+        turfId: turfData.turfId,
+
+        turfSlug: turfData.turfSlug,
+
+        turfName: turfData.turfName,
+
+        turfLocation: turfData.turfLocation,
+
+        turfImage: turfData.turfImage,
+
+        turfPrice: turfData.turfPrice,
+
+        sport: turfData.sport,
+
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const count = await wishlistCollection.countDocuments({
+        userEmail,
+      });
+
+      res.status(201).send({
+        success: true,
+        action: "added",
+        wishlisted: true,
+        count,
+        message: "Turf added to wishlist",
+      });
+    } catch (error) {
+      console.error("Wishlist toggle:", error);
+
+      if (error?.code === 11000) {
+        return res.status(409).send({
+          success: false,
+          message: "Turf is already in wishlist",
+        });
+      }
+
+      res.status(500).send({
+        success: false,
+        message: "Wishlist operation failed",
+      });
+    }
+  });
+
+  // Explicit REMOVE route
+  app.delete("/wishlist/:email/:turfId", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
+
+      const turfId = normalizeId(req.params.turfId);
+
+      if (!email) {
+        return res.status(400).send({
+          success: false,
+          message: "User email is required",
+        });
+      }
+
+      if (!turfId) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf ID is required",
+        });
+      }
+
+      const result = await wishlistCollection.deleteOne({
+        userEmail: email,
+        turfId,
+      });
+
+      if (!result.deletedCount) {
+        return res.status(404).send({
+          success: false,
+          message: "Turf is not in wishlist",
+          wishlisted: false,
+        });
+      }
+
+      const count = await wishlistCollection.countDocuments({
+        userEmail: email,
+      });
+
+      res.send({
+        success: true,
+        action: "removed",
+        wishlisted: false,
+        count,
+        message: "Turf removed from wishlist",
+      });
+    } catch (error) {
+      console.error("Remove wishlist:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to remove turf from wishlist",
+      });
+    }
+  });
+
+  // Compatibility remove route
+  app.post("/wishlist/remove", async (req, res) => {
+    try {
+      const userEmail = normalizeEmail(req.body?.userEmail || req.body?.email);
+
+      const turfId = normalizeId(
+        req.body?.turfId || req.body?.id || req.body?.turf_id,
+      );
+
+      if (!userEmail) {
+        return res.status(400).send({
+          success: false,
+          message: "User email is required",
+        });
+      }
+
+      if (!turfId) {
+        return res.status(400).send({
+          success: false,
+          message: "Turf ID is required",
+        });
+      }
+
+      const result = await wishlistCollection.deleteOne({
+        userEmail,
+        turfId,
+      });
+
+      if (!result.deletedCount) {
+        return res.status(404).send({
+          success: false,
+          message: "Turf is not in wishlist",
+          wishlisted: false,
+        });
+      }
+
+      const count = await wishlistCollection.countDocuments({
+        userEmail,
+      });
+
+      res.send({
+        success: true,
+        action: "removed",
+        wishlisted: false,
+        count,
+        message: "Turf removed from wishlist",
+      });
+    } catch (error) {
+      console.error("Remove wishlist:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to remove turf from wishlist",
+      });
+    }
+  });
+
+  app.get("/bookings/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({
+          message: "Invalid booking ID",
+        });
+      }
+
+      const booking = await bookingsCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
+      if (!booking) {
+        return res.status(404).json({
+          message: "Booking not found",
+        });
+      }
+
+      res.json({
+        booking,
+      });
+    } catch (error) {
+      console.error("Get booking details error:", error);
+
+      res.status(500).json({
+        message: "Failed to load booking details",
+      });
+    }
+  });
+
+  // Get user's complete wishlist
+  app.get("/wishlist/:email", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.params.email);
+
+      if (!email) {
+        return res.status(400).send({
+          success: false,
+          message: "User email is required",
+        });
+      }
+
+      const wishlist = await wishlistCollection
+        .find({
+          userEmail: email,
+        })
+        .sort({
+          createdAt: -1,
+        })
+        .toArray();
+
+      res.send({
+        success: true,
+        count: wishlist.length,
+
+        wishlist: wishlist.map(normalizeWishlistResponse),
+      });
+    } catch (error) {
+      console.error("Get wishlist:", error);
+
+      res.status(500).send({
+        success: false,
+        message: "Failed to get wishlist",
+      });
+    }
+  });
+
+  console.log("Khelaro API routes registered");
 }
 
 // =========================
@@ -3000,24 +2256,17 @@ async function run() {
   try {
     await client.connect();
 
-    const db =
-      client.db("khelaro");
+    const db = client.db("khelaro");
 
-    usersCollection =
-      db.collection("users");
+    usersCollection = db.collection("users");
 
-    turfsCollection =
-      db.collection("turfs");
+    turfsCollection = db.collection("turfs");
 
-    bookingsCollection =
-      db.collection("bookings");
+    bookingsCollection = db.collection("bookings");
 
-    wishlistCollection =
-      db.collection("wishlist");
+    wishlistCollection = db.collection("wishlist");
 
-    console.log(
-      "MongoDB Connected Successfully"
-    );
+    console.log("MongoDB Connected Successfully");
 
     // =========================
     // INDEXES
@@ -3025,183 +2274,154 @@ async function run() {
 
     const indexes = [
       {
-        collection:
-          usersCollection,
+        collection: usersCollection,
         keys: {
           email: 1,
         },
         options: {
           unique: true,
-          name:
-            "unique_user_email",
+          name: "unique_user_email",
         },
       },
 
       {
-        collection:
-          turfsCollection,
+        collection: turfsCollection,
         keys: {
           slug: 1,
         },
         options: {
           unique: true,
           sparse: true,
-          name:
-            "unique_turf_slug",
+          name: "unique_turf_slug",
         },
       },
 
       {
-        collection:
-          turfsCollection,
+        collection: turfsCollection,
         keys: {
           id: 1,
         },
         options: {
           sparse: true,
-          name:
-            "turf_custom_id",
+          name: "turf_custom_id",
         },
       },
 
       {
-        collection:
-          turfsCollection,
+        collection: turfsCollection,
         keys: {
           turfId: 1,
         },
         options: {
           sparse: true,
-          name:
-            "turf_turfId",
+          name: "turf_turfId",
         },
       },
 
       {
-        collection:
-          turfsCollection,
+        collection: turfsCollection,
         keys: {
           status: 1,
           createdAt: -1,
         },
         options: {
-          name:
-            "turf_status_createdAt",
+          name: "turf_status_createdAt",
         },
       },
 
       {
-        collection:
-          turfsCollection,
+        collection: turfsCollection,
         keys: {
           ownerEmail: 1,
           createdAt: -1,
         },
         options: {
-          name:
-            "turf_owner_createdAt",
+          name: "turf_owner_createdAt",
         },
       },
 
       {
-        collection:
-          bookingsCollection,
+        collection: bookingsCollection,
         keys: {
           userEmail: 1,
           date: -1,
         },
         options: {
-          name:
-            "bookings_user_date",
+          name: "bookings_user_date",
         },
       },
 
       {
-        collection:
-          bookingsCollection,
+        collection: bookingsCollection,
         keys: {
           turfId: 1,
           date: 1,
           startTime: 1,
         },
         options: {
-          name:
-            "bookings_turf_date_time",
+          name: "bookings_turf_date_time",
         },
       },
 
       {
-        collection:
-          bookingsCollection,
+        collection: bookingsCollection,
         keys: {
           ownerEmail: 1,
           date: -1,
         },
         options: {
-          name:
-            "bookings_owner_date",
+          name: "bookings_owner_date",
         },
       },
 
       {
-        collection:
-          wishlistCollection,
+        collection: wishlistCollection,
         keys: {
           userEmail: 1,
           createdAt: -1,
         },
         options: {
-          name:
-            "wishlist_user_createdAt",
+          name: "wishlist_user_createdAt",
         },
       },
 
       {
-        collection:
-          wishlistCollection,
+        collection: wishlistCollection,
         keys: {
           userEmail: 1,
           turfId: 1,
         },
         options: {
           unique: true,
-          name:
-            "unique_user_turf_wishlist",
+          name: "unique_user_turf_wishlist",
         },
       },
     ];
 
     for (const index of indexes) {
       try {
-        await index.collection.createIndex(
-          index.keys,
-          index.options
-        );
+        await index.collection.createIndex(index.keys, index.options);
       } catch (error) {
-        console.error(
-          `Index warning (${index.options.name}):`,
-          error.message
-        );
+        console.error(`Index warning (${index.options.name}):`, error.message);
       }
     }
 
     registerRoutes();
 
-    console.log(
-      "Turf source: MongoDB / turfs collection"
-    );
+    console.log("Frontend turf source: src/data/turfs.js");
+
+    console.log("Wishlist supports local turf IDs");
 
     // =========================
-    // 404 HANDLER
+    // 404
     // =========================
 
     app.use((req, res) => {
       res.status(404).send({
         success: false,
-        message:
-          "API route not found",
-        path:
-          req.originalUrl,
+        message: "API route not found",
+        method: req.method,
+        path: req.originalUrl,
       });
     });
 
@@ -3209,55 +2429,31 @@ async function run() {
     // ERROR HANDLER
     // =========================
 
-    app.use(
-      (
-        error,
-        req,
-        res,
-        next
-      ) => {
-        console.error(
-          "Unhandled error:",
-          error
-        );
+    app.use((error, req, res, next) => {
+      console.error("Unhandled error:", error);
 
-        if (
-          error instanceof
-          multer.MulterError
-        ) {
-          return res.status(400).send({
-            success: false,
-            message:
-              error.message,
-          });
-        }
-
-        res.status(500).send({
+      if (error instanceof multer.MulterError) {
+        return res.status(400).send({
           success: false,
-          message:
-            error?.message ||
-            "Internal server error",
+          message: error.message,
         });
       }
-    );
+
+      res.status(500).send({
+        success: false,
+        message: error?.message || "Internal server error",
+      });
+    });
 
     // =========================
     // SERVER
     // =========================
 
-    app.listen(
-      port,
-      () => {
-        console.log(
-          `Khelaro server listening on port ${port}`
-        );
-      }
-    );
+    app.listen(port, () => {
+      console.log(`Khelaro server listening on port ${port}`);
+    });
   } catch (error) {
-    console.error(
-      "MongoDB connection error:",
-      error
-    );
+    console.error("MongoDB connection error:", error);
 
     process.exit(1);
   }
@@ -3267,41 +2463,30 @@ async function run() {
 // SHUTDOWN
 // =========================
 
-process.on(
-  "SIGINT",
-  async () => {
+const shutdown = async () => {
+  try {
     await client.close();
 
-    console.log(
-      "MongoDB connection closed"
-    );
+    console.log("MongoDB connection closed");
 
     process.exit(0);
+  } catch (error) {
+    console.error("Shutdown error:", error);
+
+    process.exit(1);
   }
-);
+};
 
-process.on(
-  "SIGTERM",
-  async () => {
-    await client.close();
+process.on("SIGINT", shutdown);
 
-    console.log(
-      "MongoDB connection closed"
-    );
-
-    process.exit(0);
-  }
-);
+process.on("SIGTERM", shutdown);
 
 // =========================
 // START
 // =========================
 
 run().catch((error) => {
-  console.error(
-    "Server startup failed:",
-    error
-  );
+  console.error("Server startup failed:", error);
 
   process.exit(1);
 });
