@@ -69,36 +69,47 @@ const upload = multer({
 // =========================
 
 const normalizeEmail = (email = "") => {
+  let value = String(email || "").trim();
+
   try {
-    return decodeURIComponent(String(email))
-      .trim()
-      .toLowerCase();
+    value = decodeURIComponent(value);
   } catch {
-    return String(email).trim().toLowerCase();
+    // Keep original value if decoding fails.
   }
+
+  return value.trim().toLowerCase();
 };
 
 const normalizeId = (id = "") => {
+  let value = String(id || "").trim();
+
   try {
-    return decodeURIComponent(String(id || "")).trim();
+    value = decodeURIComponent(value);
   } catch {
-    return String(id || "").trim();
+    // Keep original value if decoding fails.
   }
+
+  return value.trim();
 };
 
 const normalizeSlug = (slug = "") => {
+  let value = String(slug || "").trim();
+
   try {
-    return decodeURIComponent(String(slug || ""))
-      .trim()
-      .toLowerCase();
+    value = decodeURIComponent(value);
   } catch {
-    return String(slug || "").trim().toLowerCase();
+    // Keep original value if decoding fails.
   }
+
+  return value.trim().toLowerCase();
 };
 
 const toNumber = (value, fallback = 0) => {
   const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
+
+  return Number.isFinite(number)
+    ? number
+    : fallback;
 };
 
 const isValidObjectId = (id) => {
@@ -116,7 +127,11 @@ const validateDate = (date) => {
     .split("-")
     .map(Number);
 
-  const parsed = new Date(year, month - 1, day);
+  const parsed = new Date(
+    year,
+    month - 1,
+    day
+  );
 
   return (
     parsed.getFullYear() === year &&
@@ -137,8 +152,25 @@ const cleanArray = (value) => {
   }
 
   return value
-    .map((item) => String(item || "").trim())
+    .map((item) =>
+      String(item || "").trim()
+    )
     .filter(Boolean);
+};
+
+const getTurfStableId = (turf) => {
+  if (!turf) return "";
+
+  if (turf._id) {
+    return String(turf._id);
+  }
+
+  return String(
+    turf.id ||
+      turf.turfId ||
+      turf.turf_id ||
+      ""
+  ).trim();
 };
 
 // =========================
@@ -150,7 +182,9 @@ const normalizeUserResponse = (user) => {
 
   return {
     ...user,
-    _id: user._id ? String(user._id) : "",
+    _id: user._id
+      ? String(user._id)
+      : "",
   };
 };
 
@@ -168,7 +202,8 @@ const normalizeTurfResponse = (turf) => {
       ""
   ).trim();
 
-  const stableId = customId || mongoId;
+  const stableId =
+    customId || mongoId;
 
   return {
     ...turf,
@@ -212,7 +247,9 @@ const normalizeTurfResponse = (turf) => {
         ? toNumber(turf.rating)
         : null,
 
-    reviews: toNumber(turf.reviews),
+    reviews: toNumber(
+      turf.reviews
+    ),
 
     size: String(
       turf.size || ""
@@ -223,11 +260,13 @@ const normalizeTurfResponse = (turf) => {
     ).trim(),
 
     openingTime: String(
-      turf.openingTime || "8:00 AM"
+      turf.openingTime ||
+        "8:00 AM"
     ).trim(),
 
     closingTime: String(
-      turf.closingTime || "11:00 PM"
+      turf.closingTime ||
+        "11:00 PM"
     ).trim(),
 
     description: String(
@@ -257,7 +296,9 @@ const normalizeTurfResponse = (turf) => {
   };
 };
 
-const normalizeBookingResponse = (booking) => {
+const normalizeBookingResponse = (
+  booking
+) => {
   if (!booking) return null;
 
   const id = booking._id
@@ -270,19 +311,24 @@ const normalizeBookingResponse = (booking) => {
 
   return {
     ...booking,
+
     _id: id,
     id,
     bookingId: id,
+
     turfId: String(
       booking.turfId || ""
     ),
+
     price: toNumber(
       booking.price
     ),
   };
 };
 
-const normalizeWishlistResponse = (item) => {
+const normalizeWishlistResponse = (
+  item
+) => {
   if (!item) return null;
 
   const id = item._id
@@ -295,12 +341,15 @@ const normalizeWishlistResponse = (item) => {
 
   return {
     ...item,
+
     _id: id,
     id,
     wishlistId: id,
+
     turfId: String(
       item.turfId || ""
     ),
+
     turfPrice: toNumber(
       item.turfPrice
     ),
@@ -308,113 +357,45 @@ const normalizeWishlistResponse = (item) => {
 };
 
 // =========================
-// CLOUDINARY UPLOAD
+// CLOUDINARY
 // =========================
 
 const uploadToCloudinary = (
   buffer,
   options = {}
 ) => {
-  return new Promise((resolve, reject) => {
-    const stream =
-      cloudinary.uploader.upload_stream(
-        {
-          folder: "khelaro",
-          resource_type: "image",
-          ...options,
-        },
-        (error, result) => {
-          if (error) {
-            return reject(error);
+  return new Promise(
+    (resolve, reject) => {
+      const stream =
+        cloudinary.uploader.upload_stream(
+          {
+            folder: "khelaro",
+            resource_type: "image",
+            ...options,
+          },
+          (error, result) => {
+            if (error) {
+              return reject(error);
+            }
+
+            resolve(result);
           }
+        );
 
-          resolve(result);
-        }
-      );
-
-    stream.end(buffer);
-  });
-};
-
-// =========================
-// TURF FIND HELPERS
-// =========================
-
-const findTurfById = async (turfId) => {
-  const normalizedId = normalizeId(
-    turfId
+      stream.end(buffer);
+    }
   );
-
-  if (!normalizedId) {
-    return null;
-  }
-
-  let turf = null;
-
-  // 1. MongoDB ObjectId
-  if (isValidObjectId(normalizedId)) {
-    turf =
-      await turfsCollection.findOne({
-        _id: new ObjectId(normalizedId),
-      });
-  }
-
-  // 2. Custom id
-  if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        id: normalizedId,
-      });
-  }
-
-  // 3. turfId
-  if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        turfId: normalizedId,
-      });
-  }
-
-  // 4. turf_id
-  if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        turf_id: normalizedId,
-      });
-  }
-
-  // 5. slug
-  if (!turf) {
-    turf =
-      await turfsCollection.findOne({
-        slug: normalizeSlug(
-          normalizedId
-        ),
-      });
-  }
-
-  return turf;
-};
-
-const findTurfBySlug = async (slug) => {
-  const normalizedSlug =
-    normalizeSlug(slug);
-
-  if (!normalizedSlug) {
-    return null;
-  }
-
-  return turfsCollection.findOne({
-    slug: normalizedSlug,
-  });
 };
 
 // =========================
 // DATABASE
 // =========================
 
-const dbUser = process.env.DB_USER;
-const dbPass = process.env.DB_PASS;
+const dbUser =
+  process.env.DB_USER;
+
+const dbPass =
+  process.env.DB_PASS;
 
 if (!dbUser || !dbPass) {
   console.error(
@@ -442,6 +423,83 @@ let bookingsCollection;
 let wishlistCollection;
 
 // =========================
+// TURF FIND HELPERS
+// =========================
+
+const findTurfById = async (
+  turfId
+) => {
+  const normalizedId =
+    normalizeId(turfId);
+
+  if (!normalizedId) {
+    return null;
+  }
+
+  let turf = null;
+
+  if (
+    isValidObjectId(
+      normalizedId
+    )
+  ) {
+    turf =
+      await turfsCollection.findOne({
+        _id: new ObjectId(
+          normalizedId
+        ),
+      });
+  }
+
+  if (!turf) {
+    turf =
+      await turfsCollection.findOne({
+        id: normalizedId,
+      });
+  }
+
+  if (!turf) {
+    turf =
+      await turfsCollection.findOne({
+        turfId: normalizedId,
+      });
+  }
+
+  if (!turf) {
+    turf =
+      await turfsCollection.findOne({
+        turf_id: normalizedId,
+      });
+  }
+
+  if (!turf) {
+    turf =
+      await turfsCollection.findOne({
+        slug: normalizeSlug(
+          normalizedId
+        ),
+      });
+  }
+
+  return turf;
+};
+
+const findTurfBySlug = async (
+  slug
+) => {
+  const normalizedSlug =
+    normalizeSlug(slug);
+
+  if (!normalizedSlug) {
+    return null;
+  }
+
+  return turfsCollection.findOne({
+    slug: normalizedSlug,
+  });
+};
+
+// =========================
 // BASIC ROUTES
 // =========================
 
@@ -454,7 +512,8 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => {
   res.send({
     success: true,
-    message: "Khelaro API is healthy",
+    message:
+      "Khelaro API is healthy",
   });
 });
 
@@ -470,14 +529,17 @@ function registerRoutes() {
   app.post("/users", async (req, res) => {
     try {
       const data = req.body || {};
-      const email = normalizeEmail(
-        data.email
-      );
+
+      const email =
+        normalizeEmail(
+          data.email
+        );
 
       if (!email) {
         return res.status(400).send({
           success: false,
-          message: "Email is required",
+          message:
+            "Email is required",
         });
       }
 
@@ -489,7 +551,8 @@ function registerRoutes() {
       if (existingUser) {
         return res.send({
           success: true,
-          message: "User already exists",
+          message:
+            "User already exists",
           user:
             normalizeUserResponse(
               existingUser
@@ -566,7 +629,9 @@ function registerRoutes() {
         error
       );
 
-      if (error?.code === 11000) {
+      if (
+        error?.code === 11000
+      ) {
         return res.status(409).send({
           success: false,
           message:
@@ -612,6 +677,60 @@ function registerRoutes() {
     }
   });
 
+  // Stable email lookup route.
+  app.get(
+    "/users/email/:email",
+    async (req, res) => {
+      try {
+        const email =
+          normalizeEmail(
+            req.params.email
+          );
+
+        if (!email) {
+          return res.status(400).send({
+            success: false,
+            message:
+              "Email is required",
+          });
+        }
+
+        const user =
+          await usersCollection.findOne({
+            email,
+          });
+
+        if (!user) {
+          return res.status(404).send({
+            success: false,
+            message:
+              "User not found",
+          });
+        }
+
+        res.send({
+          success: true,
+          user:
+            normalizeUserResponse(
+              user
+            ),
+        });
+      } catch (error) {
+        console.error(
+          "Get user by email:",
+          error
+        );
+
+        res.status(500).send({
+          success: false,
+          message:
+            "Failed to get user",
+        });
+      }
+    }
+  );
+
+  // Backward-compatible email route.
   app.get(
     "/users/:email",
     async (req, res) => {
@@ -688,7 +807,11 @@ function registerRoutes() {
           });
         }
 
-        if (!String(name || "").trim()) {
+        if (
+          !String(
+            name || ""
+          ).trim()
+        ) {
           return res.status(400).send({
             success: false,
             message:
@@ -697,7 +820,9 @@ function registerRoutes() {
         }
 
         const updateData = {
-          name: String(name).trim(),
+          name: String(
+            name
+          ).trim(),
 
           phone: String(
             phone || ""
@@ -721,7 +846,9 @@ function registerRoutes() {
 
         const result =
           await usersCollection.updateOne(
-            { email },
+            {
+              email,
+            },
             {
               $set: updateData,
             }
@@ -821,7 +948,9 @@ function registerRoutes() {
           );
 
         await usersCollection.updateOne(
-          { email },
+          {
+            email,
+          },
           {
             $set: {
               photoURL:
@@ -883,6 +1012,14 @@ function registerRoutes() {
           "admin",
         ];
 
+        if (!email) {
+          return res.status(400).send({
+            success: false,
+            message:
+              "Email is required",
+          });
+        }
+
         if (
           !allowedRoles.includes(
             role
@@ -897,7 +1034,9 @@ function registerRoutes() {
 
         const result =
           await usersCollection.updateOne(
-            { email },
+            {
+              email,
+            },
             {
               $set: {
                 role,
@@ -962,108 +1101,125 @@ function registerRoutes() {
         } = req.query;
 
         const query = {
-          $or: [
-            { status: "approved" },
+          $and: [
             {
-              status: {
-                $exists: false,
-              },
+              $or: [
+                {
+                  status:
+                    "approved",
+                },
+                {
+                  status: {
+                    $exists: false,
+                  },
+                },
+                {
+                  status: "",
+                },
+              ],
             },
-            { status: "" },
           ],
         };
 
         const searchText =
-          String(search).trim();
+          String(
+            search
+          ).trim();
 
         const areaText =
-          String(area).trim();
+          String(
+            area
+          ).trim();
 
         const sportText =
-          String(sport).trim();
+          String(
+            sport
+          ).trim();
 
         if (searchText) {
-          query.$and = [
-            {
-              $or: [
-                {
-                  name: {
-                    $regex:
-                      searchText,
-                    $options:
-                      "i",
-                  },
+          query.$and.push({
+            $or: [
+              {
+                name: {
+                  $regex:
+                    searchText,
+                  $options:
+                    "i",
                 },
-                {
-                  location: {
-                    $regex:
-                      searchText,
-                    $options:
-                      "i",
-                  },
+              },
+              {
+                location: {
+                  $regex:
+                    searchText,
+                  $options:
+                    "i",
                 },
-                {
-                  area: {
-                    $regex:
-                      searchText,
-                    $options:
-                      "i",
-                  },
+              },
+              {
+                area: {
+                  $regex:
+                    searchText,
+                  $options:
+                    "i",
                 },
-                {
-                  sport: {
-                    $regex:
-                      searchText,
-                    $options:
-                      "i",
-                  },
+              },
+              {
+                sport: {
+                  $regex:
+                    searchText,
+                  $options:
+                    "i",
                 },
-              ],
-            },
-          ];
+              },
+            ],
+          });
         }
 
         if (areaText) {
-          query.area = {
-            $regex: areaText,
-            $options: "i",
-          };
+          query.$and.push({
+            area: {
+              $regex: areaText,
+              $options: "i",
+            },
+          });
         }
 
         if (sportText) {
-          query.sport = {
-            $regex: sportText,
-            $options: "i",
-          };
+          query.$and.push({
+            sport: {
+              $regex: sportText,
+              $options: "i",
+            },
+          });
         }
 
-        const min = Number(
-          minPrice
-        );
+        const min =
+          Number(minPrice);
 
-        const max = Number(
-          maxPrice
-        );
+        const max =
+          Number(maxPrice);
 
         if (
           Number.isFinite(min) ||
           Number.isFinite(max)
         ) {
-          query.price = {};
+          const priceQuery = {};
 
           if (
             Number.isFinite(min)
           ) {
-            query.price.$gte =
-              min;
+            priceQuery.$gte = min;
           }
 
           if (
             Number.isFinite(max)
           ) {
-            query.price.$lte =
-              max;
+            priceQuery.$lte = max;
           }
+
+          query.$and.push({
+            price: priceQuery,
+          });
         }
 
         let sortOption = {
@@ -1121,8 +1277,7 @@ function registerRoutes() {
     }
   );
 
-  // IMPORTANT:
-  // Keep slug route before /turfs/:id
+  // Keep before /turfs/:id.
   app.get(
     "/turfs/slug/:slug",
     async (req, res) => {
@@ -1175,7 +1330,6 @@ function registerRoutes() {
     }
   );
 
-  // Main turf details route
   app.get(
     "/turfs/:id",
     async (req, res) => {
@@ -1215,7 +1369,7 @@ function registerRoutes() {
         });
       } catch (error) {
         console.error(
-          "Get turf by ID:",
+          "Get turf:",
           error
         );
 
@@ -1228,7 +1382,6 @@ function registerRoutes() {
     }
   );
 
-  // Backward-compatible route
   app.get(
     "/turfs/id/:id",
     async (req, res) => {
@@ -1315,9 +1468,8 @@ function registerRoutes() {
           data.image || ""
         ).trim();
 
-        const price = toNumber(
-          data.price
-        );
+        const price =
+          toNumber(data.price);
 
         if (!ownerEmail) {
           return res.status(400).send({
@@ -1647,7 +1799,11 @@ function registerRoutes() {
             req.body?.status || ""
           ).trim();
 
-        if (!isValidObjectId(turfId)) {
+        if (
+          !isValidObjectId(
+            turfId
+          )
+        ) {
           return res.status(400).send({
             success: false,
             message:
@@ -1733,7 +1889,11 @@ function registerRoutes() {
             req.params.id
           );
 
-        if (!isValidObjectId(turfId)) {
+        if (
+          !isValidObjectId(
+            turfId
+          )
+        ) {
           return res.status(400).send({
             success: false,
             message:
@@ -1824,21 +1984,16 @@ function registerRoutes() {
         }
 
         const actualTurfId =
-          turf._id
-            ? String(turf._id)
-            : String(
-                turf.id ||
-                  turf.turfId ||
-                  turf.turf_id ||
-                  ""
-              );
+          getTurfStableId(turf);
 
         const bookings =
           await bookingsCollection
             .find({
               turfId:
                 actualTurfId,
+
               date,
+
               status: {
                 $in: [
                   "pending",
@@ -1854,8 +2009,10 @@ function registerRoutes() {
         res.send({
           success: true,
           date,
+
           turfId:
             actualTurfId,
+
           bookings:
             bookings.map(
               normalizeBookingResponse
@@ -1939,7 +2096,9 @@ function registerRoutes() {
           !validateTime(
             startTime
           ) ||
-          !validateTime(endTime)
+          !validateTime(
+            endTime
+          )
         ) {
           return res.status(400).send({
             success: false,
@@ -1984,38 +2143,61 @@ function registerRoutes() {
           });
         }
 
+        const turfStatus =
+          String(
+            turf.status || ""
+          ).trim();
+
+        if (
+          turfStatus &&
+          turfStatus !==
+            "approved"
+        ) {
+          return res.status(400).send({
+            success: false,
+            message:
+              "This turf is not available for booking",
+          });
+        }
+
+        if (
+          turf.available ===
+          false
+        ) {
+          return res.status(400).send({
+            success: false,
+            message:
+              "This turf is currently unavailable",
+          });
+        }
+
         const actualTurfId =
-          turf._id
-            ? String(turf._id)
-            : String(
-                turf.id ||
-                  turf.turfId ||
-                  turf.turf_id ||
-                  ""
-              );
+          getTurfStableId(turf);
 
         const conflictingBooking =
-          await bookingsCollection.findOne({
-            turfId:
-              actualTurfId,
+          await bookingsCollection.findOne(
+            {
+              turfId:
+                actualTurfId,
 
-            date,
+              date,
 
-            status: {
-              $in: [
-                "pending",
-                "confirmed",
-              ],
-            },
+              status: {
+                $in: [
+                  "pending",
+                  "confirmed",
+                ],
+              },
 
-            startTime: {
-              $lt: endTime,
-            },
+              startTime: {
+                $lt: endTime,
+              },
 
-            endTime: {
-              $gt: startTime,
-            },
-          });
+              endTime: {
+                $gt: startTime,
+              },
+            }
+          );
 
         if (conflictingBooking) {
           return res.status(409).send({
@@ -2062,19 +2244,17 @@ function registerRoutes() {
 
           userEmail,
 
-          userName:
-            String(
-              data.userName ||
-                user.name ||
-                ""
-            ).trim(),
+          userName: String(
+            data.userName ||
+              user.name ||
+              ""
+          ).trim(),
 
-          userPhone:
-            String(
-              data.userPhone ||
-                user.phone ||
-                ""
-            ).trim(),
+          userPhone: String(
+            data.userPhone ||
+              user.phone ||
+              ""
+          ).trim(),
 
           date,
           startTime,
@@ -2114,6 +2294,7 @@ function registerRoutes() {
           success: true,
           message:
             "Booking created successfully",
+
           booking:
             normalizeBookingResponse(
               createdBooking
@@ -2165,6 +2346,7 @@ function registerRoutes() {
         res.send({
           success: true,
           count: bookings.length,
+
           bookings:
             bookings.map(
               normalizeBookingResponse
@@ -2321,6 +2503,7 @@ function registerRoutes() {
           success: true,
           message:
             "Booking cancelled successfully",
+
           booking:
             normalizeBookingResponse(
               updatedBooking
@@ -2372,6 +2555,7 @@ function registerRoutes() {
         res.send({
           success: true,
           count: bookings.length,
+
           bookings:
             bookings.map(
               normalizeBookingResponse
@@ -2472,6 +2656,7 @@ function registerRoutes() {
           success: true,
           message:
             "Booking status updated successfully",
+
           booking:
             normalizeBookingResponse(
               booking
@@ -2540,14 +2725,7 @@ function registerRoutes() {
         }
 
         const actualTurfId =
-          turf._id
-            ? String(turf._id)
-            : String(
-                turf.id ||
-                  turf.turfId ||
-                  turf.turf_id ||
-                  ""
-              );
+          getTurfStableId(turf);
 
         const wishlist =
           await wishlistCollection.findOne({
@@ -2642,14 +2820,7 @@ function registerRoutes() {
         }
 
         const actualTurfId =
-          turf._id
-            ? String(turf._id)
-            : String(
-                turf.id ||
-                  turf.turfId ||
-                  turf.turf_id ||
-                  ""
-              );
+          getTurfStableId(turf);
 
         const existing =
           await wishlistCollection.findOne({
@@ -2659,20 +2830,25 @@ function registerRoutes() {
           });
 
         if (existing) {
-          await wishlistCollection.deleteOne({
-            _id:
-              existing._id,
-          });
+          await wishlistCollection.deleteOne(
+            {
+              _id:
+                existing._id,
+            }
+          );
 
           const count =
-            await wishlistCollection.countDocuments({
-              userEmail,
-            });
+            await wishlistCollection.countDocuments(
+              {
+                userEmail,
+              }
+            );
 
           return res.send({
             success: true,
             wishlisted: false,
             count,
+
             message:
               "Turf removed from wishlist",
           });
@@ -2719,14 +2895,17 @@ function registerRoutes() {
         });
 
         const count =
-          await wishlistCollection.countDocuments({
-            userEmail,
-          });
+          await wishlistCollection.countDocuments(
+            {
+              userEmail,
+            }
+          );
 
         res.status(201).send({
           success: true,
           wishlisted: true,
           count,
+
           message:
             "Turf added to wishlist",
         });
@@ -2787,6 +2966,7 @@ function registerRoutes() {
           success: true,
           count:
             wishlist.length,
+
           wishlist:
             wishlist.map(
               normalizeWishlistResponse
@@ -2843,183 +3023,166 @@ async function run() {
     // INDEXES
     // =========================
 
-    try {
-      await usersCollection.createIndex(
-        { email: 1 },
-        {
+    const indexes = [
+      {
+        collection:
+          usersCollection,
+        keys: {
+          email: 1,
+        },
+        options: {
           unique: true,
           name:
             "unique_user_email",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "User index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await turfsCollection.createIndex(
-        { slug: 1 },
-        {
+      {
+        collection:
+          turfsCollection,
+        keys: {
+          slug: 1,
+        },
+        options: {
           unique: true,
           sparse: true,
           name:
             "unique_turf_slug",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Turf slug index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await turfsCollection.createIndex(
-        {
+      {
+        collection:
+          turfsCollection,
+        keys: {
           id: 1,
         },
-        {
+        options: {
           sparse: true,
           name:
             "turf_custom_id",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Turf id index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await turfsCollection.createIndex(
-        {
+      {
+        collection:
+          turfsCollection,
+        keys: {
           turfId: 1,
         },
-        {
+        options: {
           sparse: true,
           name:
             "turf_turfId",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Turf turfId index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await turfsCollection.createIndex(
-        {
+      {
+        collection:
+          turfsCollection,
+        keys: {
           status: 1,
           createdAt: -1,
         },
-        {
+        options: {
           name:
             "turf_status_createdAt",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Turf status index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await turfsCollection.createIndex(
-        {
+      {
+        collection:
+          turfsCollection,
+        keys: {
           ownerEmail: 1,
           createdAt: -1,
         },
-        {
+        options: {
           name:
             "turf_owner_createdAt",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Turf owner index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await bookingsCollection.createIndex(
-        {
+      {
+        collection:
+          bookingsCollection,
+        keys: {
           userEmail: 1,
           date: -1,
         },
-        {
+        options: {
           name:
             "bookings_user_date",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Booking user index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await bookingsCollection.createIndex(
-        {
+      {
+        collection:
+          bookingsCollection,
+        keys: {
           turfId: 1,
           date: 1,
           startTime: 1,
         },
-        {
+        options: {
           name:
             "bookings_turf_date_time",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Booking turf index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await wishlistCollection.createIndex(
-        {
+      {
+        collection:
+          bookingsCollection,
+        keys: {
+          ownerEmail: 1,
+          date: -1,
+        },
+        options: {
+          name:
+            "bookings_owner_date",
+        },
+      },
+
+      {
+        collection:
+          wishlistCollection,
+        keys: {
           userEmail: 1,
           createdAt: -1,
         },
-        {
+        options: {
           name:
             "wishlist_user_createdAt",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Wishlist user index warning:",
-        error.message
-      );
-    }
+        },
+      },
 
-    try {
-      await wishlistCollection.createIndex(
-        {
+      {
+        collection:
+          wishlistCollection,
+        keys: {
           userEmail: 1,
           turfId: 1,
         },
-        {
+        options: {
           unique: true,
           name:
             "unique_user_turf_wishlist",
-        }
-      );
-    } catch (error) {
-      console.error(
-        "Wishlist unique index warning:",
-        error.message
-      );
+        },
+      },
+    ];
+
+    for (const index of indexes) {
+      try {
+        await index.collection.createIndex(
+          index.keys,
+          index.options
+        );
+      } catch (error) {
+        console.error(
+          `Index warning (${index.options.name}):`,
+          error.message
+        );
+      }
     }
 
     registerRoutes();
@@ -3099,6 +3262,36 @@ async function run() {
     process.exit(1);
   }
 }
+
+// =========================
+// SHUTDOWN
+// =========================
+
+process.on(
+  "SIGINT",
+  async () => {
+    await client.close();
+
+    console.log(
+      "MongoDB connection closed"
+    );
+
+    process.exit(0);
+  }
+);
+
+process.on(
+  "SIGTERM",
+  async () => {
+    await client.close();
+
+    console.log(
+      "MongoDB connection closed"
+    );
+
+    process.exit(0);
+  }
+);
 
 // =========================
 // START
